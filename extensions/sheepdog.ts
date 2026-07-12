@@ -53,8 +53,6 @@
 // wake is lost across the upgrade. See loadState() / migrateLegacyEntry().
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import type { Component } from "@earendil-works/pi-tui";
-import { matchesKey, visibleWidth } from "@earendil-works/pi-tui";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -80,6 +78,24 @@ const SAFETY_BUFFER_MS = 60_000;
 const MAX_TIMEOUT_MS = 2_147_483_000;
 
 type WakeStatus = "pending" | "fired" | "cancelled";
+
+interface Component {
+  readonly width?: number;
+  wantsKeyRelease?: boolean;
+  handleInput?(data: string): void;
+  invalidate(): void;
+  render(width: number): string[];
+}
+
+function matchesKey(data: string, keyId: "escape" | "return"): boolean {
+  if (keyId === "escape") return data === "\u001b";
+  if (keyId === "return") return data === "\r" || data === "\n";
+  return false;
+}
+
+function visibleWidth(str: string): number {
+  return [...str.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "")].length;
+}
 
 // Which of the three paths produced this entry. "provider-429" = parsed
 // from a 429 response's headers; "agent_end" = parsed from error text;
