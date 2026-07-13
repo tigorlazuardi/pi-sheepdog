@@ -16,6 +16,20 @@
     "type": "git",
     "url": "https://github.com/tigorlazuardi/pi-sheepdog.git"
   },
+  "files": [
+    "extensions",
+    "README.md",
+    "docs/astro.config.mjs",
+    "docs/package.json",
+    "docs/package-lock.json",
+    "docs/tsconfig.json",
+    "docs/src"
+  ],
+  "scripts": {
+    "docs:dev": "npm --prefix docs run dev",
+    "docs:build": "npm --prefix docs run build",
+    "check": "npm run docs:build && npm pack --dry-run"
+  },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-agent-core": "*",

@@ -1,0 +1,266 @@
+---
+title: Sheepdog dedicated plugin tickets
+description: Implementation ticket breakdown for the pi-sheepdog dedicated cooldown-recovery plugin spec.
+status: draft
+date: 2026-07-12
+draft: true
+---
+
+# Sheepdog dedicated plugin tickets
+
+## Ticket 1 — Rebrand paths, commands, and status identity
+
+### Scope
+
+Replace legacy `rate-limit-wakeup` identity with `sheepdog`.
+
+### Tasks
+
+- Rename footer/status key to `sheepdog`.
+- Clear old `rate-limit-wakeup` status key whenever footer refreshes and on shutdown/startup cleanup.
+- Resolve agent dir as `PI_CODING_AGENT_DIR || ~/.pi/agent`.
+- Move state path to `${agentDir}/.cache/sheepdog/state.json`.
+- Move config/debug path base to `${agentDir}/sheepdog/`.
+- Remove old slash commands.
+- Keep only `/sheepdog` and `/sheepdog config`.
+- Update README and docs to clean rebrand language.
+
+### Acceptance
+
+- No registered `/rate-limit*`, `/sheepdog-set`, or `/sheepdog-clear` commands.
+- Footer key `sheepdog` works and old key is cleared.
+- `npm pack --dry-run` includes expected package files.
+
+## Ticket 2 — Local human time formatter
+
+### Scope
+
+Make every human-facing time local and friendly while keeping state timestamps UTC ISO.
+
+### Tasks
+
+- Add `formatLocalWakeTime(date)` with today/tomorrow/weekday/month style.
+- Replace raw `entry.wakeAt` in notifications, panel, footer, and docs.
+- Keep UTC ISO only in state/debug internals.
+
+### Acceptance
+
+- Grep human strings for raw `wakeAt`/ISO display leaks.
+- Self-check covers today, tomorrow, weekday, far-date formatting.
+
+## Ticket 3 — Adapter and mapper config
+
+### Scope
+
+Introduce provider adapters, ordered regex mapper rules, adapter args, config loading, and validation.
+
+### Tasks
+
+- Define adapter ids: `generic`, `anthropic`, `openai-compatible`.
+- Add config schema `{ "mappers": [] }`, where each rule may include adapter-specific `args`.
+- Implement `/sheepdog config` create-if-missing.
+- Validate regex, adapter ids, and adapter args.
+- Skip invalid rules with warnings.
+- Implement first-match mapper resolution returning adapter + scope template + args.
+- Let selected adapter block generic fallback.
+- Add Anthropic args: `credentialFile`, `configDir`, `baseUrl`.
+- Expand env-style path values such as `$HOME` for path args only.
+
+### Acceptance
+
+- Invalid regex does not disable valid later rules.
+- Unknown adapter warns and skips.
+- Unknown/invalid args for an adapter warn and skip only that rule.
+- First matching mapper wins and passes args only to selected adapter.
+- `/sheepdog config` creates strict minimal JSON when missing.
+
+## Ticket 4 — Cooldown interceptor pipeline
+
+### Scope
+
+Replace monolithic detection with ordered interceptors.
+
+### Tasks
+
+- Model detector result as no-match / matched / stop-generic.
+- Route HTTP 429 headers through adapter interceptors then generic fallback.
+- Route agent error text through adapter interceptors then strict generic fallback.
+- Keep provider body JSON parsing out of v1.
+- Preserve source metadata and redacted/truncated excerpts.
+
+### Acceptance
+
+- Generic text requires indicator + duration.
+- Adapter can stop generic fallback for ambiguous headers.
+- No fetch monkeypatch/body parsing.
+- Self-check covers representative 429 header and error text cases.
+
+## Ticket 5 — State v3, lock, and atomic writes
+
+### Scope
+
+Make state robust for multi-process Pi usage.
+
+### Tasks
+
+- Add state version 3 with statuses `pending`, `fired`, `cancelled`, `expired`.
+- Add fields for adapter, human notify marker, original source, redacted excerpt.
+- Implement short file lock around read-merge-write.
+- Write temp file + rename.
+- Merge per-scope entries.
+- Preserve dedupe: earliest auto wins; manual overrides; manual sticky.
+
+### Acceptance
+
+- Concurrent different-scope writes do not lose either scope in self-check.
+- Manual entry is not overwritten by later automatic detection.
+- Startup can read existing v2 enough to not crash, but no old path migration.
+
+## Ticket 6 — Wake eligibility, expiry, and idle delivery
+
+### Scope
+
+Implement scoped follow-up gate and lifecycle semantics.
+
+### Tasks
+
+- Follow-up only for scope match or catch-all `*`.
+- Mismatch due wake stays pending.
+- Send one short human UI notice per mismatched entry.
+- Later matching model sends follow-up on next event if idle.
+- On startup, overdue entries become `expired` silently.
+- If due while busy, wait until idle and show ready footer.
+- Recheck on Pi events only; no polling loop.
+
+### Acceptance
+
+- Mismatched scope never sends agent follow-up.
+- Catch-all can fire on any model.
+- Startup-overdue sends no message/notify and marks expired.
+- Busy due wake does not send until `ctx.isIdle()` is true.
+
+## Ticket 7 — Footer relevance and stale overlay fix
+
+### Scope
+
+Make footer relevant, non-sticky, and safe across rebrand.
+
+### Tasks
+
+- Footer filters matching/catch-all wakes for main timer.
+- Footer includes count of other scopes.
+- Footer displays `ready, waiting for idle` for due matching busy wake.
+- Footer clears when no matching wake remains.
+- Clear old `rate-limit-wakeup` key too.
+
+### Acceptance
+
+- Other-scope pending wake cannot keep a misleading timer stuck in footer.
+- After follow-up fires, footer clears unless another matching wake remains.
+- Old key cleanup is exercised in code path.
+
+## Ticket 8 — Interactive panel CRUD
+
+### Scope
+
+Turn `/sheepdog` into the safe UI for manual wake operations.
+
+### Tasks
+
+- Show all pending scopes and mark relevance.
+- Add selection and key hints.
+- Add wake form: scope + relative duration, default scope from current model.
+- Edit selected wake; edited auto wake becomes manual override with original source recorded.
+- Clear selected with confirmation.
+- Clear all with stronger confirmation.
+- Outside interactive TUI, show read-only text fallback and config path.
+
+### Acceptance
+
+- No command-based add/clear remains.
+- Add/edit preview local wake time before save.
+- Delete actions require confirmation.
+- Non-TUI mode has no CRUD actions.
+
+## Ticket 9 — Debug log and redaction
+
+### Scope
+
+Add local structured debug logging for supportable behavior without external telemetry.
+
+### Tasks
+
+- Write JSONL-ish local debug events to `${agentDir}/sheepdog/debug.log`.
+- Log config warnings, mapper matches, detections, blocked fallbacks, state write retries, wake due/skipped/fired/expired, panel CRUD.
+- Redact known secrets, sensitive adapter args, and truncate excerpts.
+- Avoid logging full provider payloads or credential file contents.
+
+### Acceptance
+
+- Redaction self-check covers auth headers, cookies, tokens, API keys, JWT-looking values, passwords, secrets, credential paths/contents, and sensitive adapter args.
+- Debug log never stores full raw provider payload.
+
+## Ticket 10 — Human docs site
+
+### Scope
+
+Make the rendered docs site the primary blackbox QA contract.
+
+### Tasks
+
+- Scaffold or update a Starlight/Astro docs site under `docs/` or `docs-site/` for GitHub Pages.
+- Configure correct GitHub Pages `site`/`base` and build workflow.
+- Create a human reading flow in sidebar order:
+  1. Overview
+  2. Install
+  3. Quickstart
+  4. Commands and panel
+  5. Configuration
+  6. Behavior contract
+  7. Blackbox QA checklist
+  8. Troubleshooting
+  9. Reference
+- Write docs for humans, not machines: every step must be executable verbatim.
+- Include config examples with adapter `args`, including Anthropic `credentialFile`, `configDir`, and `baseUrl`.
+- Include panel CRUD screenshots/mock descriptions or exact key/action descriptions.
+- Include exact expected footer, notification, state, and debug-log outcomes for QA scenarios.
+- Keep README short: point to docs site, include install summary, and avoid duplicating the whole contract.
+
+### Acceptance
+
+- Docs site builds locally.
+- GitHub Pages workflow/config exists and points at the docs-site build output.
+- Docs site navigation follows the required reading flow.
+- A human can install, configure, and judge all acceptance scenarios from the rendered site without reading source.
+- README has no legacy command/state instructions and points to the docs site.
+
+## Ticket 11 — Checks and package readiness
+
+### Scope
+
+Make the package mechanically verifiable and align docs with final behavior.
+
+### Tasks
+
+- Add a tiny self-check script for parser/state/time/redaction behavior.
+- Add/update package scripts if needed.
+- Run typecheck.
+- Run `npm pack --dry-run`.
+- Keep `CODING_STANDARDS.md` aligned with the final implementation.
+- Verify docs-site text matches actual command/config behavior.
+
+### Acceptance
+
+- Self-check passes.
+- Typecheck passes.
+- `npm pack --dry-run` passes.
+- Docs site build passes.
+- Reviewer uses `CODING_STANDARDS.md` as a hard gate.
+
+## Recommended execution flow
+
+Recommendation: **Fleet**.
+
+Reason: scope is now larger than a contained one-shot: state semantics, UI CRUD, adapter pipeline, config validation, and concurrency all interact. One spec maps cleanly to one DAG, with these tickets as task nodes.
+
+Human gate: user must explicitly choose Fleet or override before implementation begins.

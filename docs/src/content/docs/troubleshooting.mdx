@@ -1,0 +1,53 @@
+---
+title: Troubleshooting
+description: Common operator problems and the expected next checks.
+status: current
+---
+
+# Troubleshooting
+
+## `/sheepdog` is missing
+
+Check:
+
+- Pi reloaded after install.
+- The package installed from `tigorlazuardi/pi-sheepdog`.
+- Peer dependencies are available in the Pi runtime.
+
+## The panel does not open
+
+Current contract expects `/sheepdog` to fall back safely.
+
+If you are outside interactive TUI mode, expected behavior is read-only text status instead of CRUD.
+
+## Config rule seems ignored
+
+Check for:
+
+- invalid regex,
+- unknown adapter id,
+- invalid adapter args,
+- a different earlier mapper that already matched first.
+
+## Wake did not resume work
+
+Check:
+
+- whether the wake scope matched the current main model,
+- whether Pi was idle,
+- whether the wake had already expired before startup,
+- whether the wake was manual and still sticky.
+
+## Footer looks stale
+
+Expected current contract clears the legacy `rate-limit-wakeup` footer key and only shows the `sheepdog` key.
+
+## Debug log review
+
+Look at:
+
+```text
+${agentDir}/sheepdog/debug.log
+```
+
+Useful events include config warnings, mapper matches, detection matches, blocked fallback decisions, and wake delivery decisions.

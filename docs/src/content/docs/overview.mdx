@@ -1,0 +1,49 @@
+---
+title: Overview
+description: What Sheepdog is, what it is not, and how to read this docs site.
+status: current
+---
+
+# Overview
+
+**Sheepdog** is a Pi extension for **cooldown recovery only**.
+
+It watches for provider cooldown signals, records scoped wake entries, and nudges the active Pi session when the cooldown has passed and the current main model is relevant.
+
+## What Sheepdog does
+
+- Detects cooldowns from provider HTTP 429 headers.
+- Falls back to final agent error text when headers are not enough.
+- Lets a human manage wakes from `/sheepdog` in the interactive panel.
+- Stores wake state globally under the Pi agent directory so wakes survive reloads and restarts.
+- Shows a `sheepdog` footer/status signal for relevant pending wakes.
+
+## What Sheepdog does not do
+
+- General watchdog or crash recovery.
+- Job supervision.
+- Provider body JSON parsing in v1.
+- Automatic model switching.
+- Public telemetry export.
+
+## Current contract status
+
+This site documents the **planned dedicated Sheepdog contract** used for human review and blackbox QA.
+
+- Consumer contract: this docs site.
+- Internal provenance: `plans/sheepdog-dedicated-plugin/`.
+- Legacy pre-rebrand spec: preserved at `plans/legacy/SPEC.md` and not the main flow.
+
+## Reading flow
+
+Read these pages in order:
+
+1. Overview
+2. Install
+3. Quickstart
+4. Commands and panel
+5. Configuration
+6. Behavior contract
+7. Blackbox QA checklist
+8. Troubleshooting
+9. Reference

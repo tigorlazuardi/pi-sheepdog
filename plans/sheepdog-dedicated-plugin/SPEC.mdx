@@ -1,0 +1,547 @@
+---
+title: Sheepdog dedicated cooldown-recovery plugin
+description: Product and technical spec for turning pi-sheepdog into a dedicated cooldown-recovery plugin with scoped wakes, safe UI CRUD, adapters, mapper config, and local-only human time display.
+status: draft
+date: 2026-07-12
+draft: true
+---
+
+# Sheepdog dedicated cooldown-recovery plugin
+
+## Goal
+
+Sheepdog is a standalone Pi extension for best-effort provider cooldown recovery. It watches provider rate-limit/quota/cooldown signals, schedules scoped wakes, and resumes only when the active main model is relevant.
+
+Non-goal: general agent failure recovery. Sheepdog does not try to recover arbitrary crashes, transient network failures, stuck tool jobs, or every provider in the world.
+
+## Docs-site-as-contract QA
+
+This project will be judged blackbox against the rendered human docs site. Raw markdown for machines is not enough.
+
+Documentation is not a marketing afterthought; it is the human QA contract and reading flow. The build is not ready unless a human can open the docs site, follow the pages verbatim, install, configure, exercise, and judge Sheepdog without reading source code.
+
+Required docs-site reading flow:
+
+1. **Overview** — what Sheepdog is and is not.
+2. **Install** — exact `pi install` path, package expectations, verify extension loaded.
+3. **Quickstart** — shortest happy path from provider cooldown to wake.
+4. **Commands and panel** — `/sheepdog`, `/sheepdog config`, panel CRUD, non-TUI fallback.
+5. **Configuration** — mapper rules, adapter `args`, Anthropic credential/base URL examples, validation errors.
+6. **Behavior contract** — scope matching, mismatch notices, startup expiry, idle waiting, footer semantics.
+7. **Blackbox QA checklist** — step-by-step scenarios with expected UI/footer/state/log outcomes.
+8. **Troubleshooting** — stale footer, bad config rule, ambiguous provider header, missing TUI panel.
+9. **Reference** — state/config paths, adapter list, privacy/redaction.
+
+Required artifacts:
+
+- Starlight/Astro docs site under `docs/` or `docs-site/`.
+- GitHub Pages is the v1 docs hosting target.
+- Docs-site build command documented and passing.
+- Human-first pages above, with navigation/sidebar order matching the reading flow.
+- `README.md` points to the docs site and gives only a short install/overview.
+- `CODING_STANDARDS.md` remains the implementation/review gate for workers and reviewers.
+
+## Decisions
+
+### Product boundary
+
+Sheepdog owns cooldown recovery only:
+
+- popular/provider-known cooldown patterns through small adapters
+- generic HTTP 429 header fallback
+- strict final error-text fallback
+- manual wake CRUD through a safe panel
+
+### Public identity
+
+Use `sheepdog` everywhere user-facing:
+
+- package: `pi-sheepdog`
+- status/footer key: `sheepdog`
+- config dir: `sheepdog/`
+- cache dir: `.cache/sheepdog/`
+- command: `/sheepdog`
+
+Clean break from `rate-limit-wakeup`:
+
+- no old commands
+- no old state migration
+- proactively clear old `rate-limit-wakeup` footer key so stale overlays disappear after upgrade
+
+### Command surface
+
+Only two slash command forms ship in v1:
+
+- `/sheepdog` — opens the panel in interactive TUI; read-only text fallback outside TUI
+- `/sheepdog config` — creates a minimal config file if missing, validates mapper rules, and prints config path/examples
+
+No `/sheepdog-set` and no `/sheepdog-clear`. Manual add/edit/delete lives in the panel because text commands are typo-prone for destructive timer changes.
+
+### Human time display
+
+State may store UTC ISO timestamps. Human-facing output must never show raw UTC ISO.
+
+Use local, friendly time:
+
+- `today 23:41`
+- `tomorrow 08:10`
+- `Mon 15:00`
+- `Jul 20 23:41` for farther dates
+
+Pair with relative time where useful: `in 1h 20m`.
+
+### Agent directory
+
+Resolve the Pi agent directory as:
+
+```ts
+process.env.PI_CODING_AGENT_DIR ?? path.join(os.homedir(), ".pi", "agent")
+```
+
+Do not use `PI_CONFIG_DIR`.
+
+Paths:
+
+- config: `${agentDir}/sheepdog/config.json`
+- state: `${agentDir}/.cache/sheepdog/state.json`
+- debug log: `${agentDir}/sheepdog/debug.log`
+
+## Domain model
+
+### Wake
+
+A scheduled follow-up message that resumes or prompts continuation after a provider cooldown has passed.
+
+### Scope
+
+A provider/model-family key that groups cooldown state, such as `anthropic/*`. A scoped wake is relevant to the main agent only when the current model ref matches the scope glob.
+
+### Catch-all wake
+
+A wake with scope `*` because no provider/model scope could be determined. Catch-all wakes are globally relevant and may fire regardless of current model.
+
+### Provider adapter
+
+A small parser strategy for a known cooldown format. v1 ships:
+
+- `generic`
+- `anthropic`
+- `openai-compatible`
+
+No dedicated OpenRouter adapter in v1. OpenRouter-like model refs can use mapper rules to select another adapter.
+
+### Cooldown interceptor
+
+An ordered detector step. It inspects one source and returns one of:
+
+- no match
+- matched cooldown
+- stop generic fallback, with warning/debug reason
+
+Interceptors avoid one giant parser and let known provider quirks block unsafe generic behavior.
+
+### Regex mapper
+
+Ordered user config that maps model refs to an adapter, scope template, and optional adapter-specific `args`. First match wins.
+
+Example:
+
+```json
+{
+  "mappers": [
+    {
+      "match": "^openrouter/anthropic/(.+)$",
+      "adapter": "anthropic",
+      "scope": "openrouter/anthropic/*",
+      "args": {
+        "credentialFile": "$HOME/.claude/.credentials.json",
+        "baseUrl": "https://api.anthropic.com"
+      }
+    }
+  ]
+}
+```
+
+`args` policy:
+
+- optional per rule
+- passed only to the selected adapter
+- adapter owns validation, defaults, and redaction for its args
+- unknown args for that adapter: warn and skip that rule
+- env-style values such as `$HOME` may be expanded for file paths only
+- args must not become a global untyped config bag
+
+Anthropic adapter v1 args:
+
+- `credentialFile` — explicit credentials JSON path
+- `configDir` — override Claude config dir, similar to `CLAUDE_CONFIG_DIR`
+- `baseUrl` — override Anthropic-compatible base URL, similar to `ANTHROPIC_BASE_URL`
+
+Bad mapper rule policy:
+
+- invalid regex: warn and skip that rule
+- unknown adapter: warn and skip that rule
+- invalid adapter args: warn and skip that rule
+- valid later rules still load
+- Sheepdog continues with built-ins and generic fallback
+
+## Detection sources
+
+### v1 sources
+
+1. HTTP 429 response headers from `after_provider_response`
+2. final agent error text from `agent_end`
+3. manual add/edit from the panel
+
+Provider body JSON parsing is deferred. Current Pi examples show `after_provider_response` exposes status and headers, not body. Do not monkeypatch fetch to capture bodies.
+
+### Generic HTTP 429 headers
+
+Generic header parsing may use standard cooldown headers such as:
+
+- `retry-after`
+- reset-at timestamps
+- reset-after durations
+
+A mapper-selected adapter may block generic fallback for a matching model ref if that provider's `Retry-After` is known ambiguous.
+
+If an adapter knows a signal is ambiguous and body JSON is unavailable, do not schedule. Warn/log and rely on error-text fallback or manual panel add.
+
+### Error text fallback
+
+Generic error-text parsing stays conservative:
+
+- must contain a rate-limit/quota/429/too-many-requests indicator
+- must contain a parseable cooldown duration
+
+Duration alone is not enough.
+
+### Manual panel entries
+
+Manual add/edit creates a manual wake. Manual wakes are sticky: later automatic detections for the same scope do not overwrite them until the manual wake fires, expires, or is cleared.
+
+## State model
+
+State file is global, not project-local:
+
+```json
+{
+  "version": 3,
+  "entries": {
+    "anthropic/*": {
+      "scopeGlob": "anthropic/*",
+      "status": "pending",
+      "wakeAt": "2026-07-12T16:41:00.000Z",
+      "source": "provider-429",
+      "adapter": "anthropic",
+      "modelRef": "anthropic/claude-sonnet-5",
+      "cwd": "/home/user/project",
+      "createdAt": "2026-07-12T15:41:00.000Z",
+      "updatedAt": "2026-07-12T15:41:00.000Z"
+    }
+  }
+}
+```
+
+Statuses:
+
+- `pending` — wake not terminal yet
+- `fired` — agent follow-up sent
+- `cancelled` — user cleared it from panel
+- `expired` — Pi started after wake time had already passed; no startup wake was sent
+
+Extra fields:
+
+- `humanNotifiedAt` — set when a mismatched overdue wake got its once-per-entry short human UI notice
+- `originalSource` — set when user edits an auto-detected wake into a manual override
+- `sourceExcerpt` — short redacted/truncated excerpt only
+
+### Multi-process writes
+
+Use a short state lock plus atomic write:
+
+1. acquire lock with short timeout and stale-lock cleanup
+2. re-read latest state
+3. merge per-scope entries
+4. write temp file
+5. rename temp file over state path
+6. release lock
+
+No jitter-before-write. Jitter lowers collision chance but does not make state correct.
+
+### Same-scope dedupe
+
+- automatic detections: earliest wake wins
+- manual add/edit: overrides same-scope entry
+- manual entry is sticky until terminal
+
+## Wake delivery rules
+
+### Matching gate
+
+When a wake becomes due while Pi is running:
+
+- if scope is `*`: eligible
+- if current main model matches `scopeGlob`: eligible
+- otherwise: not eligible for agent follow-up
+
+Mismatch behavior:
+
+- do not send an agent follow-up
+- keep entry `pending`
+- send one short human UI notification per entry: `Sheepdog: models under <scope> are available again.`
+- do not encourage switching models
+- later, if the current model matches on a Pi event, send the normal follow-up
+
+### Event-driven recheck
+
+No polling loop. Recheck overdue pending wakes on Pi events that already update context, such as:
+
+- session start
+- provider response
+- agent end
+- opening `/sheepdog`
+
+### Startup overdue policy
+
+If Pi starts after a wake time has already passed, mark the entry `expired` silently.
+
+No startup follow-up. No startup human notification. No nasty wake messages when opening a new session.
+
+If wake time is still in the future at startup, schedule it normally.
+
+### Busy agent policy
+
+If Pi is running at wake time but the agent is busy, wait until idle.
+
+Footer shows: `ready, waiting for idle`.
+
+Send the follow-up on the next event where:
+
+- entry is due
+- current model matches or scope is `*`
+- `ctx.isIdle()` is true
+
+### Follow-up target
+
+Send follow-up to the current active session only. Do not try to switch back to the original session.
+
+The message includes original cwd/session context for the user/agent to inspect.
+
+## Footer behavior
+
+Footer key: `sheepdog`.
+
+Also clear old key: `rate-limit-wakeup`.
+
+Footer shows:
+
+- matching pending wake timer, if any
+- `ready, waiting for idle` when due and matching but busy
+- count of other scopes, without making unrelated scopes the main timer
+
+Footer clears when no matching wake remains. Other-scope pending wakes stay visible in the panel, not as sticky footer timers.
+
+## Panel behavior
+
+`/sheepdog` opens panel in interactive TUI.
+
+Panel shows all scopes and marks relevance:
+
+- matching
+- catch-all
+- other
+- expired/cancelled/fired if history display is enabled later
+
+v1 CRUD:
+
+- add wake
+- edit wake
+- clear selected wake
+- clear all wakes
+
+Add/edit fields:
+
+- scope glob
+- relative duration
+
+Defaults:
+
+- add scope defaults to current model scope
+- add/edit previews local wake time before save
+
+Confirmation:
+
+- add/edit: no confirm beyond preview/save
+- clear selected: confirm
+- clear all: stronger confirm
+
+Outside interactive TUI, `/sheepdog` returns read-only text status and config path. No CRUD fallback commands.
+
+## Config command
+
+`/sheepdog config`:
+
+- creates `${agentDir}/sheepdog/config.json` if missing
+- generated file is strict minimal JSON, no `_help` keys, no JSONC
+- validates mapper rules, adapter ids, and adapter args
+- reports bad rules with warnings
+- prints examples in command output/README, including adapter `args`, not inside config file
+
+Minimal generated config:
+
+```json
+{
+  "mappers": []
+}
+```
+
+## Redaction and debug log
+
+Observability is local debug log only. No external telemetry or OTel integration in v1.
+
+Log local structured events to `${agentDir}/sheepdog/debug.log` for:
+
+- config loaded
+- config warning
+- mapper matched
+- detection matched
+- detection blocked generic fallback
+- state write conflict/retry
+- wake due
+- wake skipped due to model mismatch
+- human UI notice sent
+- follow-up sent
+- wake expired on startup
+- panel CRUD action
+
+Sensitive data:
+
+- redact auth headers, cookies, API keys, tokens, JWTs, passwords, secrets, private keys, credential file contents, and sensitive adapter args
+- truncate excerpts
+- keep field names visible when redacted
+- never log full provider payloads
+
+## I/O examples
+
+### Header detection → scheduled wake
+
+Input:
+
+```text
+current model: anthropic/claude-sonnet-5
+provider response: 429
+headers: retry-after: 3600
+```
+
+Output:
+
+```text
+state entry: scope anthropic/*, wake at local display "today 23:41", source provider-429
+footer: ⏰ sheepdog today 23:41 (in 1h) 
+```
+
+### Mismatched due wake → human notice only
+
+Input:
+
+```text
+wake scope: anthropic/*
+wake time: due now
+current model: openai/gpt-5.4
+```
+
+Output:
+
+```text
+agent follow-up: none
+human UI notify: Sheepdog: models under anthropic/* are available again.
+state: still pending, humanNotifiedAt set
+footer: matching timer absent, other scope count shown
+```
+
+### Later matching model → follow-up
+
+Input:
+
+```text
+wake scope: anthropic/*
+wake time: already due
+current model: anthropic/claude-sonnet-5
+ctx.isIdle(): true
+```
+
+Output:
+
+```text
+agent follow-up: sent to current active session
+state: fired
+footer: cleared unless another matching wake exists
+```
+
+### Startup after missed wake → silent expiry
+
+Input:
+
+```text
+Pi starts at 10:00 local
+state has pending wake for 09:00 local
+```
+
+Output:
+
+```text
+agent follow-up: none
+human UI notify: none
+state: expired
+footer: none
+```
+
+### Panel manual add
+
+Input:
+
+```text
+user opens /sheepdog
+presses add
+scope default: anthropic/*
+duration: 45m
+```
+
+Output:
+
+```text
+preview: today 23:26 (in 45m)
+state: manual wake for anthropic/*
+future automatic detections for anthropic/* do not overwrite it
+```
+
+## Acceptance criteria
+
+- Clean rebrand uses `sheepdog` commands/status/config/state paths.
+- Old `rate-limit-wakeup` footer key is cleared.
+- Human-facing output never shows raw UTC ISO; state still stores UTC ISO.
+- Agent follow-up only fires for matching scope or `*`.
+- Mismatched due wake sends only one short human UI notice per entry.
+- Startup-overdue wakes expire silently.
+- Busy due wakes wait until idle and show `ready, waiting for idle`.
+- `/sheepdog` panel supports add/edit/clear selected/clear all in TUI.
+- No `/sheepdog-set` or `/sheepdog-clear` commands exist.
+- `/sheepdog config` creates strict minimal JSON and validates mapper rules.
+- Mapper supports first-match adapter + scope template + adapter `args` rules.
+- Invalid mapper rules or invalid adapter args warn and skip without disabling Sheepdog.
+- Provider body JSON parsing is not implemented in v1.
+- Local debug log redacts known secrets and truncates excerpts.
+- State writes use short lock + atomic write.
+- Checks: parser/state unit self-checks, typecheck, `npm pack --dry-run`.
+- Rendered docs site is sufficient for blackbox QA: install, configure, run panel CRUD, simulate cooldown scenarios, inspect expected footer/notify/state/log outcomes without reading source.
+- Docs-site reading flow is human-designed and ordered: overview → install → quickstart → commands/panel → config → behavior → QA checklist → troubleshooting → reference.
+- Docs site builds locally before handoff.
+- `CODING_STANDARDS.md` exists and reviewers use it as a hard gate.
+
+## Open implementation checks
+
+- Confirm exact Pi event API for custom panel rendering and non-TUI detection.
+- Confirm best available way to tell interactive TUI vs RPC before using `ctx.ui.custom`.
+- Confirm whether current `@earendil-works/pi-coding-agent` exports `getAgentDir`; if not, implement local `PI_CODING_AGENT_DIR` fallback helper.
+- Configure docs-site for GitHub Pages v1 hosting, including correct `site`/`base` and build workflow.

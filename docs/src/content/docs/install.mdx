@@ -1,0 +1,48 @@
+---
+title: Install
+description: Install Sheepdog into Pi and verify the docs build and command surface.
+status: current
+---
+
+# Install
+
+## Prerequisites
+
+- A working Pi installation.
+- Git access to `tigorlazuardi/pi-sheepdog`.
+- A Pi agent directory at `${HOME}/.pi/agent` unless `PI_CODING_AGENT_DIR` overrides it.
+
+## Install from GitHub
+
+```bash
+pi install git:github.com/tigorlazuardi/pi-sheepdog
+```
+
+## Expected package identity
+
+After install, the package should expose the **Sheepdog** command surface:
+
+- `/sheepdog`
+- `/sheepdog config`
+
+Legacy `/rate-limit-wakeup*` commands are not part of the current contract.
+
+## Verify extension load
+
+After Pi reloads, verify all of the following:
+
+1. `/sheepdog` is available.
+2. `/sheepdog config` is available.
+3. No user-facing docs or README instructions tell you to use `/rate-limit-wakeup`.
+
+## Docs build for maintainers
+
+If you are validating the published docs site locally:
+
+```bash
+cd docs
+npm install
+npm run build
+```
+
+Build output goes to `docs/dist/`.

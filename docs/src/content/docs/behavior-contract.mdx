@@ -1,0 +1,85 @@
+---
+title: Behavior contract
+description: Wake lifecycle, matching rules, footer semantics, and follow-up delivery rules.
+status: current
+---
+
+# Behavior contract
+
+## Detection sources in v1
+
+1. `after_provider_response` HTTP 429 headers
+2. `agent_end` final error text
+3. manual panel add/edit
+
+Provider body JSON parsing is explicitly out of scope for v1.
+
+## Scope and matching
+
+A wake is relevant when:
+
+- its scope is `*`, or
+- the current main model matches the wake `scopeGlob`.
+
+## Due wake behavior
+
+### Matching scope
+
+When a due wake matches and Pi is idle, Sheepdog may send a follow-up into the current active session.
+
+### Matching scope but Pi busy
+
+Expected behavior:
+
+- keep the wake pending,
+- wait until idle,
+- show footer text equivalent to `ready, waiting for idle`.
+
+### Mismatched scope
+
+Expected behavior:
+
+- no agent follow-up,
+- keep the wake pending,
+- send one short human notice for that entry,
+- later deliver only when a matching model becomes active and Pi is idle.
+
+### Startup overdue
+
+If Pi starts after the wake time already passed:
+
+- no startup follow-up,
+- no startup human notice,
+- mark the wake `expired` silently.
+
+## Footer contract
+
+Footer/status key: `sheepdog`
+
+Legacy footer key `rate-limit-wakeup` should be cleared so stale overlays do not survive the rebrand.
+
+The footer should show:
+
+- a matching pending wake timer, or
+- `ready, waiting for idle` when due and matching but busy,
+- count of other-scope wakes without making them the main timer.
+
+## State status values
+
+- `pending`
+- `fired`
+- `cancelled`
+- `expired`
+
+## Logging contract
+
+Sheepdog writes local debug logs only.
+
+Expected events include:
+
+- config loaded/warning
+- mapper matched
+- detection matched
+- generic fallback blocked
+- wake due/skipped/fired/expired
+- panel CRUD action

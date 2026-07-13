@@ -1,0 +1,80 @@
+---
+title: Configuration
+description: Config file paths, mapper rules, adapter args, and validation expectations.
+status: current
+---
+
+# Configuration
+
+## Paths
+
+Sheepdog resolves the Pi agent directory as:
+
+```ts
+process.env.PI_CODING_AGENT_DIR ?? path.join(os.homedir(), '.pi', 'agent')
+```
+
+Expected paths:
+
+- Config: `${agentDir}/sheepdog/config.json`
+- State: `${agentDir}/.cache/sheepdog/state.json`
+- Debug log: `${agentDir}/sheepdog/debug.log`
+
+## Minimal generated config
+
+```json
+{
+  "mappers": []
+}
+```
+
+Generated config is strict JSON.
+
+- No JSONC.
+- No `_help` keys.
+- No global untyped `args` bag.
+
+## Mapper rule shape
+
+```json
+{
+  "mappers": [
+    {
+      "match": "^openrouter/anthropic/(.+)$",
+      "adapter": "anthropic",
+      "scope": "openrouter/anthropic/*",
+      "args": {
+        "credentialFile": "$HOME/.claude/.credentials.json",
+        "baseUrl": "https://api.anthropic.com"
+      }
+    }
+  ]
+}
+```
+
+## Adapter ids in v1
+
+- `generic`
+- `anthropic`
+- `openai-compatible`
+
+## Anthropic adapter args in v1
+
+- `credentialFile`
+- `configDir`
+- `baseUrl`
+
+## Validation contract
+
+Bad mapper rules should warn and skip only that rule.
+
+Examples:
+
+- invalid regex: warn and skip
+- unknown adapter: warn and skip
+- invalid adapter args: warn and skip
+- valid later rules: still load
+
+## Privacy rules
+
+Config examples may show file paths, but docs should not publish secrets or credential contents.
