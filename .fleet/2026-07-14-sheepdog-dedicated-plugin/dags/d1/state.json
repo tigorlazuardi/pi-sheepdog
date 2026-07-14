@@ -558,7 +558,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "8a52412822b3e19829e6327e85719d46497c07c9",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t5-spec-resume-20260715"
+        "agentId": "spawn-t5-frontier-fix-01a55819-8e5b-4e88-aa00-8ff7439a0bb5"
       },
       "sync": {
         "mirrored": true,
@@ -566,8 +566,8 @@
       },
       "attributes": {
         "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
-        "lastVerdict": "PASS",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-9.md",
+        "lastVerdict": "ESCALATE",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-5.md",
         "resumeTieBreaker": "fail",
         "resumeTieBreakerAt": "2026-07-15T00:00:00Z",
         "resumeTieBreakerSummary": "Task worktree has viable uncommitted TypeScript migration but required check fails because self-check imports removed .js module; recover implementation.",
@@ -804,15 +804,16 @@
           "model": "gpt-5.6-terra",
           "agentId": "pending-review-t5-standards-32f2cfa4-3f26-4d09-874e-d66a668e8b24",
           "startedAt": "2026-07-14T23:33:53Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": "standards reviewer spawned",
+          "endedAt": "2026-07-14T23:46:22Z",
+          "status": "error",
+          "error": "stale reviewer absent on resume; frontier standards review recovered",
+          "summary": "Stale frontier standards reviewer recovered on resume.",
           "attributes": {
             "attempt": "3",
             "class": "worker",
             "axis": "standards",
-            "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d"
+            "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
+            "recovery": "stale-reviewer"
           }
         },
         {
@@ -990,15 +991,16 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-merge-resolve-e8a85aad-fac3-43fd-bae2-559bfe2f6e72",
           "startedAt": "2026-07-14T23:42:08Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": "Spawned fresh merge-conflict resolver for scripts/self-check.mjs.",
+          "endedAt": "2026-07-14T23:46:22Z",
+          "status": "error",
+          "error": "stale reviewer absent on resume; frontier standards review recovered",
+          "summary": "Stale frontier standards reviewer recovered on resume.",
           "attributes": {
             "class": "worker",
             "resume": "merge-conflict",
             "commitSha": "5339a8d5d5582c1f342f548b4f021a822de4d868",
-            "verdict": "PASS"
+            "verdict": "PASS",
+            "recovery": "stale-reviewer"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-8.md"
         },
@@ -1048,14 +1050,15 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-standards-20260715-000400",
           "startedAt": "2026-07-15T00:04:00Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": "Standards reviewer spawned for recovered Ticket 5 branch.",
+          "endedAt": "2026-07-14T23:46:22Z",
+          "status": "error",
+          "error": "stale reviewer absent on resume; frontier standards review recovered",
+          "summary": "Stale frontier standards reviewer recovered on resume.",
           "attributes": {
             "axis": "standards",
             "class": "worker",
-            "commitSha": "8a52412"
+            "commitSha": "8a52412",
+            "recovery": "stale-reviewer"
           },
           "reportRef": null
         },
@@ -1065,18 +1068,22 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "spawn-t5-frontier-standards-5255b901-0db1-4241-ac37-6ba384fa90c6",
           "startedAt": "2026-07-14T23:44:04Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": "frontier standards reviewer spawned after escalation",
+          "endedAt": "2026-07-14T23:47:00Z",
+          "status": "error",
+          "error": "stale reviewer absent on resume; frontier standards review recovered",
+          "summary": "State v3 migration requires frontier escalation; merge artifacts leave duplicated malformed TypeScript, discarded mapper warnings, and duplicated mapper self-check logic.",
           "attributes": {
             "attempt": "5",
             "class": "frontier",
             "axis": "standards",
             "commitSha": "8a52412822b3e19829e6327e85719d46497c07c9",
-            "escalated": "true"
+            "escalated": "true",
+            "recovery": "stale-reviewer",
+            "verdict": "ESCALATE",
+            "lowTolerance": "state-schema-migration",
+            "checksRun": "false"
           },
-          "reportRef": null
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-5.md"
         },
         {
           "role": "orchestrator",
@@ -1122,10 +1129,10 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "spawn-t5-frontier-standards-resume-20260715",
           "startedAt": "2026-07-14T23:44:54Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": "frontier standards reviewer spawned after relay recovery",
+          "endedAt": "2026-07-14T23:46:22Z",
+          "status": "error",
+          "error": "stale reviewer absent on resume; frontier standards review recovered",
+          "summary": "Stale frontier standards reviewer recovered on resume.",
           "attributes": {
             "axis": "standards",
             "class": "frontier",
@@ -1139,17 +1146,56 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-spec-resume-20260715",
           "startedAt": "2026-07-14T23:46:11Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": null,
+          "endedAt": "2026-07-14T23:46:22Z",
+          "status": "error",
+          "error": "stale reviewer absent on resume; frontier standards review recovered",
+          "summary": "Stale frontier standards reviewer recovered on resume.",
           "attributes": {
             "class": "worker",
             "axis": "spec",
             "commitSha": "72b3e825a8046d5ef72eb33692a7bfbd36bd09fb",
-            "checkCommand": "npm run self-check -- state && npm run check"
+            "checkCommand": "npm run self-check -- state && npm run check",
+            "recovery": "stale-reviewer"
           },
           "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "spawn-t5-frontier-standards-recover-20260714T234601Z",
+          "startedAt": "2026-07-14T23:46:22Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "frontier standards reviewer spawned after resume recovery",
+          "attributes": {
+            "axis": "standards",
+            "class": "frontier",
+            "recovery": "stale-reviewer",
+            "commitSha": "8a52412822b3e19829e6327e85719d46497c07c9",
+            "escalated": "true"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "spawn-t5-frontier-fix-01a55819-8e5b-4e88-aa00-8ff7439a0bb5",
+          "startedAt": "2026-07-14T23:47:00Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "frontier worker spawned to fix frontier review findings",
+          "attributes": {
+            "attempt": "10",
+            "class": "frontier",
+            "resume": "review-fix",
+            "fixAttempt": "3",
+            "reviewAxis": "standards"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-5.md"
         }
       ]
     },
