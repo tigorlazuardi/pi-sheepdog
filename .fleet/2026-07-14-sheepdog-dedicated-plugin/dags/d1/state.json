@@ -996,22 +996,24 @@
         "checkCommand": "npm run self-check -- detection && npm run check"
       },
       "runtime": {
-        "status": "pending",
+        "status": "running",
         "fixAttempt": 0,
         "handoverAttempt": 0,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4",
-        "commitSha": null,
-        "acceptanceResult": null,
-        "agentId": null
+        "commitSha": "faeac92cbfbccd81f8e89f6a081f2552c21c5b50",
+        "acceptanceResult": "pass",
+        "agentId": "spawn-t4-standards-f0950693-c0fa-40ab-a8d9-d3dd322bcb1d"
       },
       "sync": {
         "mirrored": true,
-        "pushed": false
+        "pushed": true
       },
       "attributes": {
         "reconciledAt": "2026-07-15T00:01:00Z",
         "reconciliation": "premature dispatch invalidated; no viable work beyond integration base",
-        "blockedBy": "t5"
+        "blockedBy": "t5",
+        "lastVerdict": "PASS",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-implementer-1.md"
       },
       "audit": [
         {
@@ -1020,15 +1022,37 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t4-b6201aa6-0057-4b2e-a409-518c7bfd0171",
           "startedAt": "2026-07-14T23:39:19Z",
-          "endedAt": "2026-07-15T00:01:00Z",
-          "status": "error",
-          "error": "dispatched before required dependency t5 passed; stale worker absent and branch contains only integration base",
-          "summary": "Premature t4 dispatch reconciled. No viable task work exists; returned node to pending until t5 passes.",
+          "endedAt": "2026-07-14T23:41:58Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Ordered adapter-first cooldown detection added; strict generic fallback retained. Required checks passed.",
           "attributes": {
             "attempt": "1",
             "class": "worker",
             "dependencyGate": "blocked",
-            "recovery": "no-task-commit"
+            "recovery": "no-task-commit",
+            "verdict": "PASS",
+            "commitSha": "faeac92cbfbccd81f8e89f6a081f2552c21c5b50",
+            "acceptanceResult": "pass",
+            "tokens": "0"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-implementer-1.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "spawn-t4-standards-f0950693-c0fa-40ab-a8d9-d3dd322bcb1d",
+          "startedAt": "2026-07-14T23:41:58Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "standards reviewer spawned",
+          "attributes": {
+            "attempt": "1",
+            "class": "worker",
+            "axis": "standards",
+            "commitSha": "faeac92cbfbccd81f8e89f6a081f2552c21c5b50"
           },
           "reportRef": null
         }
