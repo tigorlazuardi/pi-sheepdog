@@ -552,13 +552,13 @@
         "checkCommand": "npm run self-check -- state && npm run check"
       },
       "runtime": {
-        "status": "running",
+        "status": "pending",
         "fixAttempt": 2,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
-        "commitSha": "c5ad02bef46783982386dc688cd61819be1309c6",
-        "acceptanceResult": null,
-        "agentId": "pending-spawn-t5-95c56fea-221f-4a19-9733-dafe44aacd66"
+        "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
+        "acceptanceResult": "pass",
+        "agentId": null
       },
       "sync": {
         "mirrored": false,
@@ -566,13 +566,13 @@
       },
       "attributes": {
         "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
-        "lastVerdict": "HANDOVER",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-2.md",
-        "resumeTieBreaker": "fail",
-        "resumeTieBreakerAt": "2026-07-14T16:03:59Z",
-        "resumeTieBreakerSummary": "Resume found the pending implementer gone. Orchestrator ran `npm run self-check -- state && npm run check`; it failed in `scripts/self-check.mjs` with `ReferenceError: Bun is not defined`, and there is still no task commit, so the handover attempt is respawned.",
-        "lastWorkerCommitSha": "c5ad02bef46783982386dc688cd61819be1309c6",
-        "staleRecovery": "pending-check"
+        "lastVerdict": "PASS",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-review-fix.md",
+        "resumeTieBreaker": "pass",
+        "resumeTieBreakerAt": "2026-07-14T23:33:18Z",
+        "resumeTieBreakerSummary": "stale standards-review-fix worker absent; orchestrator ran routing.checkCommand successfully with task commit present",
+        "lastWorkerCommitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
+        "staleRecovery": "review-standards"
       },
       "audit": [
         {
@@ -745,19 +745,42 @@
           "model": "gpt-5.6-terra",
           "agentId": "pending-spawn-t5-95c56fea-221f-4a19-9733-dafe44aacd66",
           "startedAt": "2026-07-14T23:31:27Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": "implementer respawned from standards review fix",
+          "endedAt": "2026-07-14T23:33:18Z",
+          "status": "error",
+          "error": "stale running agent missing on resume; tie-breaker passed with task commit present",
+          "summary": "Stale standards-review-fix worker was absent. Required state and repository checks passed against the existing task commit; review restarts at standards.",
           "attributes": {
             "attempt": "7",
             "class": "worker",
             "resume": "review-fix",
             "fixAttempt": "3",
             "handoverAttempt": "3",
-            "reviewAxis": "standards"
+            "reviewAxis": "standards",
+            "resumeTieBreaker": "pass",
+            "resumeTieBreakerAt": "2026-07-14T23:33:18Z"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-2.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "5776bfd4-f2c1-4bc",
+          "startedAt": "2026-07-14T23:33:18Z",
+          "endedAt": "2026-07-14T23:33:46Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Shared state production/self-check logic in `extensions/sheepdog-state.js`; preserved state-v3 behavior. Required checks passed.",
+          "attributes": {
+            "axis": "standards",
+            "class": "worker",
+            "resume": "stale-worker-tie-breaker",
+            "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
+            "acceptanceResult": "pass",
+            "verdict": "PASS",
+            "tokens": "0"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-review-fix.md"
         }
       ]
     },
