@@ -552,13 +552,13 @@
         "checkCommand": "npm run self-check -- state && npm run check"
       },
       "runtime": {
-        "status": "running",
-        "fixAttempt": 2,
+        "status": "failed",
+        "fixAttempt": 4,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t5-spec-4400b821-7865-4a1f-b73d-ba5df3aef680"
+        "agentId": null
       },
       "sync": {
         "mirrored": true,
@@ -566,13 +566,14 @@
       },
       "attributes": {
         "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
-        "lastVerdict": "PASS",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-review-fix.md",
+        "lastVerdict": "FAIL",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-3.md",
         "resumeTieBreaker": "pass",
         "resumeTieBreakerAt": "2026-07-14T23:33:18Z",
         "resumeTieBreakerSummary": "stale standards-review-fix worker absent; orchestrator ran routing.checkCommand successfully with task commit present",
         "lastWorkerCommitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
-        "staleRecovery": "review-standards"
+        "staleRecovery": "review-standards",
+        "failureReason": "fixAttempt exceeded bound after TypeScript ESM standards finding"
       },
       "audit": [
         {
@@ -826,17 +827,19 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-spec-4400b821-7865-4a1f-b73d-ba5df3aef680",
           "startedAt": "2026-07-14T23:35:09Z",
-          "endedAt": null,
+          "endedAt": "2026-07-14T23:35:53Z",
           "status": "ok",
           "error": null,
-          "summary": "spec reviewer spawned",
+          "summary": "New shared state module is `.js`, violating CODING_STANDARDS.md TypeScript ESM requirement. Shared logic otherwise removes prior duplication safely.",
           "attributes": {
             "attempt": "2",
             "class": "worker",
             "axis": "spec",
-            "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d"
+            "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
+            "verdict": "FAIL",
+            "tokens": "0"
           },
-          "reportRef": null
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-3.md"
         }
       ]
     },
