@@ -547,8 +547,8 @@
       ],
       "routing": {
         "failureTolerance": "standard",
-        "worker": "worker",
-        "reviewer": "worker",
+        "worker": "frontier",
+        "reviewer": "frontier",
         "checkCommand": "npm run self-check -- state && npm run check"
       },
       "runtime": {
@@ -558,7 +558,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "8a52412822b3e19829e6327e85719d46497c07c9",
         "acceptanceResult": "pass",
-        "agentId": null
+        "agentId": "spawn-t5-frontier-standards-5255b901-0db1-4241-ac37-6ba384fa90c6"
       },
       "sync": {
         "mirrored": true,
@@ -566,12 +566,12 @@
       },
       "attributes": {
         "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
-        "lastVerdict": "PASS",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-9.md",
+        "lastVerdict": "ESCALATE",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-10.md",
         "resumeTieBreaker": "fail",
         "resumeTieBreakerAt": "2026-07-15T00:00:00Z",
         "resumeTieBreakerSummary": "Task worktree has viable uncommitted TypeScript migration but required check fails because self-check imports removed .js module; recover implementation.",
-        "lastWorkerCommitSha": "8a52412822b3e19829e6327e85719d46497c07c9",
+        "lastWorkerCommitSha": "8a52412",
         "staleRecovery": "t5-typescript-rename-recovered",
         "failureReason": "fixAttempt exceeded bound after TypeScript ESM standards finding",
         "mergeState": "conflict",
@@ -584,7 +584,9 @@
         "dagBranchSha": "4ee7171a4a894e4fe79ef33924998f43b92fc14d",
         "dagBranchPushedAt": "2026-07-14T23:39:08Z",
         "dagBranchDurability": "recorded",
-        "staleResolverRecovery": "actual integration merge commit 4ee7171 present; stale resolver superseded"
+        "staleResolverRecovery": "actual integration merge commit 4ee7171 present; stale resolver superseded",
+        "escalationReason": "standards reviewer identified state schema/migration surface",
+        "escalationAt": "2026-07-14T23:44:04Z"
       },
       "audit": [
         {
@@ -946,22 +948,23 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-recover-20260715-000000",
           "startedAt": "2026-07-15T00:00:00Z",
-          "endedAt": "2026-07-14T23:41:37Z",
+          "endedAt": "2026-07-15T00:04:00Z",
           "status": "ok",
           "error": null,
-          "summary": "Resolved d1/t5 integration conflict. Preserved mapper config plus v3 lock/atomic state semantics; required check passed.",
+          "summary": "Background required checks completed exit 0. Ticket 5 branch pushed.",
           "attributes": {
             "attempt": "10",
             "class": "worker",
             "resume": "review-fix",
             "fixAttempt": "3",
             "reviewAxes": "standards,spec",
-            "commitSha": "5339a8d5d5582c1f342f548b4f021a822de4d868",
+            "commitSha": "8a52412",
             "resumeTieBreaker": "fail",
-            "acceptanceResult": "pass",
-            "verdict": "PASS"
+            "acceptanceResult": "PASS: npm run self-check -- state && npm run check",
+            "verdict": "PASS",
+            "tokens": "0"
           },
-          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-8.md"
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-10.md"
         },
         {
           "role": "orchestrator",
@@ -1005,17 +1008,19 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-standards-28a9c89e-7bd3-4b36-bd42-c048b73da18c",
           "startedAt": "2026-07-14T23:42:45Z",
-          "endedAt": null,
+          "endedAt": "2026-07-14T23:44:04Z",
           "status": "ok",
           "error": null,
-          "summary": "standards reviewer spawned",
+          "summary": "State schema/migration surface touched; frontier review required.",
           "attributes": {
             "attempt": "4",
             "class": "worker",
             "axis": "standards",
-            "commitSha": "72b3e825a8046d5ef72eb33692a7bfbd36bd09fb"
+            "commitSha": "8a52412822b3e19829e6327e85719d46497c07c9",
+            "verdict": "ESCALATE",
+            "lowTolerance": "state-schema"
           },
-          "reportRef": null
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-4.md"
         },
         {
           "role": "reviewer",
@@ -1036,6 +1041,42 @@
             "mergeCheck": "pass"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-9.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "spawn-t5-standards-20260715-000400",
+          "startedAt": "2026-07-15T00:04:00Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Standards reviewer spawned for recovered Ticket 5 branch.",
+          "attributes": {
+            "axis": "standards",
+            "class": "worker",
+            "commitSha": "8a52412"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "spawn-t5-frontier-standards-5255b901-0db1-4241-ac37-6ba384fa90c6",
+          "startedAt": "2026-07-14T23:44:04Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "frontier standards reviewer spawned after escalation",
+          "attributes": {
+            "attempt": "5",
+            "class": "frontier",
+            "axis": "standards",
+            "commitSha": "8a52412822b3e19829e6327e85719d46497c07c9",
+            "escalated": "true"
+          },
+          "reportRef": null
         }
       ]
     },
