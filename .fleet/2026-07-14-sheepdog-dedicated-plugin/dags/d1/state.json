@@ -552,13 +552,13 @@
         "checkCommand": "npm run self-check -- state && npm run check"
       },
       "runtime": {
-        "status": "pending",
+        "status": "running",
         "fixAttempt": 2,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "c5ad02bef46783982386dc688cd61819be1309c6",
         "acceptanceResult": null,
-        "agentId": null
+        "agentId": "pending-spawn-t5-95c56fea-221f-4a19-9733-dafe44aacd66"
       },
       "sync": {
         "mirrored": false,
@@ -738,6 +738,26 @@
             "reviewAxis": "standards",
             "resumeTieBreaker": "pending"
           }
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.6-terra",
+          "agentId": "pending-spawn-t5-95c56fea-221f-4a19-9733-dafe44aacd66",
+          "startedAt": "2026-07-14T23:31:27Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "implementer respawned from standards review fix",
+          "attributes": {
+            "attempt": "7",
+            "class": "worker",
+            "resume": "review-fix",
+            "fixAttempt": "3",
+            "handoverAttempt": "3",
+            "reviewAxis": "standards"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-2.md"
         }
       ]
     },
