@@ -41,11 +41,10 @@
 // drop unrelated scopes.
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { loadStateFile, mergeDetectedWakeEntry, updateStateFile } from "./sheepdog-state.js";
 
-const STATE_VERSION = 3;
 const STATUS_KEY = "sheepdog";
 const LEGACY_STATUS_KEY = "rate-limit-wakeup";
 
@@ -428,166 +427,19 @@ function computeScopeGlob(modelRef: string | undefined): string | undefined {
 
 // --- state (v3, multi-scope) -------------------------------------------------
 
-function looksLikeLegacyV1(parsed: unknown): parsed is Record<string, unknown> {
-  if (!parsed || typeof parsed !== "object") {
-    return false;
-  }
-  const p = parsed as Record<string, unknown>;
-  return p.version === 1 && typeof p.wakeAt === "string";
-}
-
-function looksLikeEntriesRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-function normalizeWakeStatus(value: unknown): WakeStatus {
-  return value === "pending" || value === "fired" || value === "cancelled" || value === "expired"
-    ? value
-    : "cancelled";
-}
-
-function normalizeWakeEntry(raw: unknown, scopeKey: string): WakeEntry | null {
-  if (!raw || typeof raw !== "object") {
-    return null;
-  }
-  const entry = raw as Record<string, unknown>;
-  const wakeAt = typeof entry.wakeAt === "string" ? entry.wakeAt : undefined;
-  if (!wakeAt) {
-    return null;
-  }
-  const now = new Date().toISOString();
-  const redactedExcerpt =
-    typeof entry.redactedExcerpt === "string"
-      ? entry.redactedExcerpt
-      : typeof entry.sourceExcerpt === "string"
-        ? entry.sourceExcerpt
-        : "";
-  return {
-    scopeGlob: typeof entry.scopeGlob === "string" && entry.scopeGlob.length > 0 ? entry.scopeGlob : scopeKey,
-    status: normalizeWakeStatus(entry.status),
-    origin: entry.origin === "manual" ? "manual" : "auto",
-    wakeAt,
-    delayMs: typeof entry.delayMs === "number" ? entry.delayMs : 0,
-    redactedExcerpt,
-    source: entry.source === "provider-429" ? "provider-429" : "agent_end",
-    originalSource: entry.originalSource === "provider-429" || entry.originalSource === "agent_end" ? entry.originalSource : undefined,
-    adapter: typeof entry.adapter === "string" ? entry.adapter : undefined,
-    humanNotifiedAt: typeof entry.humanNotifiedAt === "string" ? entry.humanNotifiedAt : undefined,
-    modelRef: typeof entry.modelRef === "string" ? entry.modelRef : undefined,
-    sessionId: typeof entry.sessionId === "string" ? entry.sessionId : undefined,
-    sessionFile: typeof entry.sessionFile === "string" ? entry.sessionFile : undefined,
-    cwd: typeof entry.cwd === "string" ? entry.cwd : process.cwd(),
-    createdAt: typeof entry.createdAt === "string" ? entry.createdAt : now,
-    updatedAt: typeof entry.updatedAt === "string" ? entry.updatedAt : now,
-  };
-}
-
-function migrateLegacyEntry(legacy: Record<string, unknown>, scopeKey: string): WakeEntry {
-  const redactedExcerpt = typeof legacy.sourceExcerpt === "string" ? legacy.sourceExcerpt : "";
-  const source: RateLimitSource = redactedExcerpt.startsWith("provider response 429;") ? "provider-429" : "agent_end";
-  const now = new Date().toISOString();
-  return {
-    scopeGlob: scopeKey,
-    status: normalizeWakeStatus(legacy.status),
-    origin: "auto",
-    wakeAt: typeof legacy.wakeAt === "string" ? legacy.wakeAt : now,
-    delayMs: typeof legacy.delayMs === "number" ? legacy.delayMs : 0,
-    redactedExcerpt,
-    source,
-    modelRef: typeof legacy.modelRef === "string" ? legacy.modelRef : undefined,
-    sessionId: typeof legacy.sessionId === "string" ? legacy.sessionId : undefined,
-    sessionFile: typeof legacy.sessionFile === "string" ? legacy.sessionFile : undefined,
-    cwd: typeof legacy.cwd === "string" ? legacy.cwd : process.cwd(),
-    createdAt: typeof legacy.createdAt === "string" ? legacy.createdAt : now,
-    updatedAt: typeof legacy.updatedAt === "string" ? legacy.updatedAt : now,
-  };
-}
-
-function normalizeState(parsed: unknown): StateFileV3 | null {
-  if (!parsed || typeof parsed !== "object") {
-    return null;
-  }
-  const value = parsed as Record<string, unknown>;
-  if (!looksLikeEntriesRecord(value.entries)) {
-    return null;
-  }
-  const entries: Record<string, WakeEntry> = {};
-  for (const [scopeKey, rawEntry] of Object.entries(value.entries)) {
-    const normalized = normalizeWakeEntry(rawEntry, scopeKey);
-    if (normalized) {
-      entries[scopeKey] = normalized;
-    }
-  }
-  return { version: STATE_VERSION, entries };
-}
-
 function loadState(): StateFileV3 | null {
-  try {
-    const raw = fs.readFileSync(getStatePath(), "utf8");
-    const parsed: unknown = JSON.parse(raw);
-
-    if (looksLikeLegacyV1(parsed)) {
-      const legacy = parsed as Record<string, unknown>;
-      const scopeKey =
-        typeof legacy.scopeGlob === "string" && legacy.scopeGlob.length > 0 ? legacy.scopeGlob : CATCHALL_SCOPE;
-      return { version: STATE_VERSION, entries: { [scopeKey]: migrateLegacyEntry(legacy, scopeKey) } };
-    }
-
-    return normalizeState(parsed);
-  } catch {
-    return null;
-  }
-}
-
-function writeStateFile(state: StateFileV3): void {
-  const statePath = getStatePath();
-  const tempPath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(state, null, 2), "utf8");
-  fs.renameSync(tempPath, statePath);
-}
-
-function saveState(state: StateFileV3): void {
-  try {
-    fs.mkdirSync(getStateDir(), { recursive: true });
-    withStateLock(() => writeStateFile(state));
-  } catch {
-    // fail open: an unpersisted timer still fires for this process's lifetime.
-  }
+  return loadStateFile(getStatePath(), { catchallScope: CATCHALL_SCOPE }) as StateFileV3 | null;
 }
 
 function updateState<T>(updater: (state: StateFileV3) => T): T | undefined {
   try {
-    fs.mkdirSync(getStateDir(), { recursive: true });
-    return withStateLock(() => {
-      const state = loadState() ?? { version: STATE_VERSION, entries: {} };
-      const result = updater(state);
-      writeStateFile(state);
-      return result;
-    });
+    return updateStateFile(
+      getStatePath(),
+      (state) => updater(state as StateFileV3),
+      { catchallScope: CATCHALL_SCOPE },
+    ) as T;
   } catch {
     return undefined;
-  }
-}
-
-function withStateLock<T>(fn: () => T): T {
-  const lockPath = `${getStatePath()}.lock`;
-  const deadline = Date.now() + 1_000;
-
-  while (true) {
-    try {
-      const fd = fs.openSync(lockPath, "wx");
-      try {
-        return fn();
-      } finally {
-        fs.closeSync(fd);
-        fs.rmSync(lockPath, { force: true });
-      }
-    } catch (error) {
-      if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST" || Date.now() >= deadline) {
-        throw error;
-      }
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
-    }
   }
 }
 
@@ -934,33 +786,18 @@ export default function (pi: ExtensionAPI) {
 
     const entry = updateState((state) => {
       const existing = state.entries[scopeKey];
-      const existingPending = existing?.status === "pending" ? existing : undefined;
-      if (existingPending?.origin === "manual") {
-        existingPending.updatedAt = now.toISOString();
-        return { ...existingPending };
-      }
-      if (existingPending && new Date(existingPending.wakeAt).getTime() <= new Date(newWakeAt).getTime()) {
-        existingPending.updatedAt = now.toISOString();
-        return { ...existingPending };
-      }
-
-      const nextEntry: WakeEntry = {
+      const nextEntry = mergeDetectedWakeEntry(existing, {
         scopeGlob: scopeKey,
-        status: "pending",
-        origin: "auto",
         wakeAt: newWakeAt,
         delayMs: parsed.delayMs,
         redactedExcerpt: parsed.excerpt,
         source,
-        adapter: existing?.adapter,
-        humanNotifiedAt: existing?.humanNotifiedAt,
         modelRef,
         sessionId: safeSessionId(ctx),
         sessionFile: safeSessionFile(ctx),
         cwd: ctx.cwd,
-        createdAt: existingPending?.createdAt ?? existing?.createdAt ?? now.toISOString(),
-        updatedAt: now.toISOString(),
-      };
+        nowIso: now.toISOString(),
+      }) as WakeEntry;
       state.entries[scopeKey] = nextEntry;
       return { ...nextEntry };
     });
