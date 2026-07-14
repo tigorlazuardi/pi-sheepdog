@@ -552,13 +552,13 @@
         "checkCommand": "npm run self-check -- state && npm run check"
       },
       "runtime": {
-        "status": "pending",
+        "status": "running",
         "fixAttempt": 2,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
         "acceptanceResult": "pass",
-        "agentId": null
+        "agentId": "pending-review-t5-standards-32f2cfa4-3f26-4d09-874e-d66a668e8b24"
       },
       "sync": {
         "mirrored": false,
@@ -781,6 +781,23 @@
             "tokens": "0"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-review-fix.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "gpt-5.6-terra",
+          "agentId": "pending-review-t5-standards-32f2cfa4-3f26-4d09-874e-d66a668e8b24",
+          "startedAt": "2026-07-14T23:33:53Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "standards reviewer spawned",
+          "attributes": {
+            "attempt": "3",
+            "class": "worker",
+            "axis": "standards",
+            "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d"
+          }
         }
       ]
     },
