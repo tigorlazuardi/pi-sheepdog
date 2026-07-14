@@ -16,7 +16,7 @@
       "id": "t1",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-1",
-        "title": "Ticket 1 — Rebrand paths, commands, and status identity"
+        "title": "Ticket 1 \u2014 Rebrand paths, commands, and status identity"
       },
       "dependsOn": [],
       "routing": {
@@ -195,7 +195,7 @@
       "id": "t2",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-2",
-        "title": "Ticket 2 — Local human time formatter"
+        "title": "Ticket 2 \u2014 Local human time formatter"
       },
       "dependsOn": [
         "t1"
@@ -341,7 +341,7 @@
       "id": "t3",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-3",
-        "title": "Ticket 3 — Adapter and mapper config"
+        "title": "Ticket 3 \u2014 Adapter and mapper config"
       },
       "dependsOn": [
         "t1",
@@ -539,7 +539,7 @@
       "id": "t5",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-5",
-        "title": "Ticket 5 — State v3, lock, and atomic writes"
+        "title": "Ticket 5 \u2014 State v3, lock, and atomic writes"
       },
       "dependsOn": [
         "t1",
@@ -558,7 +558,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
         "acceptanceResult": "pass",
-        "agentId": "t5-frontier-standards-durable-20260715"
+        "agentId": "t5-frontier-standards-fresh-20260715"
       },
       "sync": {
         "mirrored": true,
@@ -591,7 +591,7 @@
         "stalePreFixVerdictAt": "2026-07-14T23:52:29Z",
         "remediationCommit": "8bc5a3e00727b5bc972def89ce86522faad82b82",
         "remediationAcceptance": "pass",
-        "staleReviewerRecovery": "fresh-frontier-standards-pending"
+        "staleReviewerRecovery": "fresh-frontier-standards-running"
       },
       "audit": [
         {
@@ -1260,6 +1260,24 @@
             "attempt": "8"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-standards-1.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t5-frontier-standards-fresh-20260715",
+          "startedAt": "2026-07-15T00:05:00Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": null,
+          "attributes": {
+            "axis": "standards",
+            "class": "frontier",
+            "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
+            "recovery": "direct-fresh-review"
+          },
+          "reportRef": null
         }
       ]
     },
@@ -1267,7 +1285,7 @@
       "id": "t4",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-4",
-        "title": "Ticket 4 — Cooldown interceptor pipeline"
+        "title": "Ticket 4 \u2014 Cooldown interceptor pipeline"
       },
       "dependsOn": [
         "t3",
@@ -1383,7 +1401,7 @@
       "id": "t9",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-9",
-        "title": "Ticket 9 — Debug log and redaction"
+        "title": "Ticket 9 \u2014 Debug log and redaction"
       },
       "dependsOn": [
         "t3",
