@@ -103,6 +103,40 @@ function resolveMapper(modelRef, config) {
   return { adapter: "generic", scopeGlob: computeScopeGlob(modelRef) ?? "*", args: {} };
 }
 
+const RATE_LIMIT_INDICATOR = /rate.?limit|quota|429|too many requests/i;
+const DURATION_KEYWORD = /(?:reset|resets|retry)\s+(?:after|in)\s+|try\s+again\s+in\s+/i;
+
+function parseDurationMs(text) {
+  let ms = 0;
+  for (const [re, unit] of [[/(\d+)\s*d(?:ays?)?(?![a-z])/i, 86_400_000], [/(\d+)\s*h(?:ours?|rs?)?(?![a-z])/i, 3_600_000], [/(\d+)\s*m(?:in(?:ute)?s?)?(?![a-z])/i, 60_000], [/(\d+)\s*s(?:ec(?:ond)?s?)?(?![a-z])/i, 1_000]]) {
+    const match = text.match(re);
+    if (match) ms += Number.parseInt(match[1], 10) * unit;
+  }
+  return ms || null;
+}
+
+function detectErrorText(adapter, text) {
+  // v1 provider adapters do not parse body/error formats; generic stays strict.
+  if (!RATE_LIMIT_INDICATOR.test(text)) return { kind: "no-match" };
+  const keyword = text.match(DURATION_KEYWORD);
+  const delayMs = keyword?.index === undefined ? null : parseDurationMs(text.slice(keyword.index + keyword[0].length, keyword.index + keyword[0].length + 60));
+  return delayMs ? { kind: "matched", delayMs } : { kind: "no-match" };
+}
+
+function detectHeaders(adapter, headers) {
+  const retryAfter = Object.entries(headers).find(([name]) => name.toLowerCase() === "retry-after")?.[1];
+  if (adapter !== "generic" && retryAfter?.includes(",")) return { kind: "stop-generic" };
+  if (!retryAfter || !/^\d+(?:\.\d+)?$/.test(retryAfter)) return { kind: "no-match" };
+  return { kind: "matched", delayMs: Number(retryAfter) * 1_000 };
+}
+
+function checkDetection() {
+  assert.deepEqual(detectHeaders("generic", { "Retry-After": "120" }), { kind: "matched", delayMs: 120_000 });
+  assert.equal(detectHeaders("anthropic", { "Retry-After": "60, 120" }).kind, "stop-generic");
+  assert.equal(detectErrorText("generic", "Rate limit: retry after 2m").kind, "matched");
+  assert.equal(detectErrorText("generic", "try again in 2m").kind, "no-match");
+}
+
 function checkMapperConfig() {
   const config = loadMapperConfig({
     mappers: [
@@ -233,7 +267,10 @@ async function checkConcurrentMerge() {
 
 const mode = process.argv[2];
 
-if (mode === "time") {
+if (mode === "detection") {
+  checkDetection();
+  console.log("self-check: detection ok");
+} else if (mode === "time") {
   checkTimeFormatting();
   console.log("self-check: time ok");
 } else if (mode === "mapper") {

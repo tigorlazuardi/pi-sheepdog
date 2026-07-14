@@ -178,6 +178,13 @@ interface ParsedRateLimit {
   excerpt: string;
 }
 
+type DetectorResult =
+  | { kind: "no-match" }
+  | { kind: "matched"; parsed: ParsedRateLimit }
+  | { kind: "stop-generic"; reason: string };
+
+const NO_MATCH: DetectorResult = { kind: "no-match" };
+
 // Scans freeform text for d/h/m/s tokens and sums them additively (e.g.
 // "2d3h" -> 2 days + 3 hours). Used for both the agent_end text parser and
 // the provider-header freeform fallback. This is intentionally lenient
@@ -220,7 +227,7 @@ function parseDurationMs(window: string): number | null {
  * Returns null when the text doesn't look like a rate limit error, or a
  * rate limit is mentioned but no parseable duration is present.
  */
-function parseRateLimitError(errorMessage: string): ParsedRateLimit | null {
+function parseGenericRateLimitError(errorMessage: string): ParsedRateLimit | null {
   if (!errorMessage || !RATE_LIMIT_INDICATOR.test(errorMessage)) {
     return null;
   }
@@ -360,7 +367,7 @@ function parseHeaderDelayMs(headerName: string, rawValue: string): number | null
  * one that yields a usable positive delay. Returns null when no known
  * rate-limit header is present or none parse to a usable delay.
  */
-function parseProviderRateLimit(headers: Record<string, string> | undefined | null): ParsedRateLimit | null {
+function parseGenericProviderRateLimit(headers: Record<string, string> | undefined | null): ParsedRateLimit | null {
   if (!headers || typeof headers !== "object") {
     return null;
   }
@@ -396,6 +403,43 @@ function parseProviderRateLimit(headers: Record<string, string> | undefined | nu
     delayMs: delayMs + SAFETY_BUFFER_MS,
     excerpt: excerpt.slice(0, 400),
   };
+}
+
+// --- ordered cooldown interceptors ------------------------------------------
+
+// Provider adapters get first look at a signal. They are deliberately small:
+// v1 has no response-body access, so unknown provider formats fall through to
+// strict generic parsing instead of guessing from a provider payload.
+function interceptAdapterHeaders(adapter: AdapterId, headers: Record<string, string> | undefined | null): DetectorResult {
+  if (!headers || adapter === "generic") return NO_MATCH;
+
+  // A comma-separated Retry-After is multiple merged header values. Its unit
+  // is ambiguous, so a selected provider adapter blocks generic guessing.
+  const retryAfter = getHeaderCaseInsensitive(headers, "retry-after");
+  if (retryAfter?.includes(",")) {
+    return { kind: "stop-generic", reason: `${adapter}: ambiguous retry-after header` };
+  }
+  return NO_MATCH;
+}
+
+function interceptAdapterError(_adapter: AdapterId, _errorMessage: string): DetectorResult {
+  // ponytail: v1 adapters have no documented provider-text-only format.
+  // Add a matched branch when a provider format is stable and independently testable.
+  return NO_MATCH;
+}
+
+function detectHeaders(adapter: AdapterId, headers: Record<string, string> | undefined | null): DetectorResult {
+  const adapterResult = interceptAdapterHeaders(adapter, headers);
+  if (adapterResult.kind !== "no-match") return adapterResult;
+  const parsed = parseGenericProviderRateLimit(headers);
+  return parsed ? { kind: "matched", parsed } : NO_MATCH;
+}
+
+function detectErrorText(adapter: AdapterId, errorMessage: string): DetectorResult {
+  const adapterResult = interceptAdapterError(adapter, errorMessage);
+  if (adapterResult.kind !== "no-match") return adapterResult;
+  const parsed = parseGenericRateLimitError(errorMessage);
+  return parsed ? { kind: "matched", parsed } : NO_MATCH;
 }
 
 // --- config / mapper ---------------------------------------------------------
@@ -979,12 +1023,13 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const parsed = parseProviderRateLimit(event.headers);
-      if (!parsed) {
+      const mapper = resolveMapper(computeModelRef(ctx));
+      const result = detectHeaders(mapper.adapter, event.headers);
+      if (result.kind !== "matched") {
         return;
       }
 
-      upsertDetectedState(ctx, parsed, "provider-429");
+      upsertDetectedState(ctx, result.parsed, "provider-429");
     } catch {
       // fail open
     }
@@ -1003,12 +1048,13 @@ export default function (pi: ExtensionAPI) {
       }
 
       const errorMessage = String(assistant.errorMessage ?? "");
-      const parsed = parseRateLimitError(errorMessage);
-      if (!parsed) {
+      const mapper = resolveMapper(computeModelRef(ctx));
+      const result = detectErrorText(mapper.adapter, errorMessage);
+      if (result.kind !== "matched") {
         return;
       }
 
-      upsertDetectedState(ctx, parsed, "agent_end");
+      upsertDetectedState(ctx, result.parsed, "agent_end");
     } catch {
       // fail open
     }
