@@ -1,0 +1,213 @@
+{
+  "meta": {
+    "runName": "2026-07-14-sheepdog-dedicated-plugin",
+    "schemaVersion": 1,
+    "baseBranch": "main",
+    "integrationBranch": "fleet/2026-07-14-sheepdog-dedicated-plugin/int",
+    "specRef": "plans/sheepdog-dedicated-plugin/SPEC.mdx",
+    "standardsRef": "CODING_STANDARDS.md"
+  },
+  "tracker": {
+    "type": "local-md",
+    "supportsBlocking": false
+  },
+  "nodes": [
+    {
+      "id": "t6",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-6",
+        "title": "Ticket 6 \u2014 Wake eligibility, expiry, and idle delivery"
+      },
+      "dependsOn": [],
+      "routing": {
+        "failureTolerance": "standard",
+        "worker": "worker",
+        "reviewer": "worker",
+        "checkCommand": "npm run self-check -- wake && npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d2/t6",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "t7",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-7",
+        "title": "Ticket 7 \u2014 Footer relevance and stale overlay fix"
+      },
+      "dependsOn": [
+        "t6"
+      ],
+      "routing": {
+        "failureTolerance": "standard",
+        "worker": "worker",
+        "reviewer": "worker",
+        "checkCommand": "npm run self-check -- footer && npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d2/t7",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "t8",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-8",
+        "title": "Ticket 8 \u2014 Interactive panel CRUD"
+      },
+      "dependsOn": [
+        "t6"
+      ],
+      "routing": {
+        "failureTolerance": "standard",
+        "worker": "worker",
+        "reviewer": "worker",
+        "checkCommand": "npm run self-check -- panel && npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d2/t8",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "t10",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-10",
+        "title": "Ticket 10 \u2014 Human docs site"
+      },
+      "dependsOn": [
+        "t7",
+        "t8"
+      ],
+      "routing": {
+        "failureTolerance": "trivial",
+        "worker": "worker",
+        "reviewer": "worker",
+        "checkCommand": "npm run docs:build && npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d2/t10",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "t11",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-11",
+        "title": "Ticket 11 \u2014 Checks and package readiness"
+      },
+      "dependsOn": [
+        "t6",
+        "t7",
+        "t8",
+        "t10"
+      ],
+      "routing": {
+        "failureTolerance": "standard",
+        "worker": "worker",
+        "reviewer": "worker",
+        "checkCommand": "npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d2/t11",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "t13",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#t13",
+        "title": "d2 integration check"
+      },
+      "dependsOn": [
+        "t6",
+        "t7",
+        "t8",
+        "t10",
+        "t11"
+      ],
+      "routing": {
+        "failureTolerance": "standard",
+        "worker": "worker",
+        "reviewer": "worker",
+        "checkCommand": "npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d2/t13",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    }
+  ],
+  "stopFlag": {
+    "stopped": false,
+    "reason": null,
+    "stoppedAt": null
+  }
+}

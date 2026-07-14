@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "runName": "2026-07-14-sheepdog-dedicated-plugin",
+    "schemaVersion": 1,
+    "baseBranch": "main",
+    "integrationBranch": "fleet/2026-07-14-sheepdog-dedicated-plugin/int",
+    "createdAt": "2026-07-14T00:00:00Z",
+    "maxConcurrent": 3
+  },
+  "git": {
+    "remote": "git@github.com:tigorlazuardi/pi-sheepdog.git",
+    "webTemplate": "https://github.com/tigorlazuardi/pi-sheepdog/commit/{sha}"
+  },
+  "dags": [
+    {
+      "id": "d1",
+      "ref": "plans/sheepdog-dedicated-plugin/SPEC.mdx",
+      "title": "Core detection, state, and logging primitives",
+      "statePath": "dags/d1/state.json",
+      "dependsOn": [],
+      "status": "pending",
+      "judge": {
+        "verdict": null,
+        "attempt": 0
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "d2",
+      "ref": "plans/sheepdog-dedicated-plugin/SPEC.mdx",
+      "title": "Wake delivery, panel UX, docs, and package readiness",
+      "statePath": "dags/d2/state.json",
+      "dependsOn": [
+        "d1"
+      ],
+      "status": "pending",
+      "judge": {
+        "verdict": null,
+        "attempt": 0
+      },
+      "attributes": {},
+      "audit": []
+    }
+  ],
+  "stopFlag": {
+    "stopped": false,
+    "reason": null,
+    "stoppedAt": null
+  }
+}

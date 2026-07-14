@@ -1,0 +1,246 @@
+{
+  "meta": {
+    "runName": "2026-07-14-sheepdog-dedicated-plugin",
+    "schemaVersion": 1,
+    "baseBranch": "main",
+    "integrationBranch": "fleet/2026-07-14-sheepdog-dedicated-plugin/int",
+    "specRef": "plans/sheepdog-dedicated-plugin/SPEC.mdx",
+    "standardsRef": "CODING_STANDARDS.md"
+  },
+  "tracker": {
+    "type": "local-md",
+    "supportsBlocking": false
+  },
+  "nodes": [
+    {
+      "id": "t1",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-1",
+        "title": "Ticket 1 \u2014 Rebrand paths, commands, and status identity"
+      },
+      "dependsOn": [],
+      "routing": {
+        "failureTolerance": "standard",
+        "worker": "worker",
+        "reviewer": "worker",
+        "checkCommand": "npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t1",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "t2",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-2",
+        "title": "Ticket 2 \u2014 Local human time formatter"
+      },
+      "dependsOn": [
+        "t1"
+      ],
+      "routing": {
+        "failureTolerance": "standard",
+        "worker": "worker",
+        "reviewer": "worker",
+        "checkCommand": "npm run self-check -- time && npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t2",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "t3",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-3",
+        "title": "Ticket 3 \u2014 Adapter and mapper config"
+      },
+      "dependsOn": [
+        "t1",
+        "t2"
+      ],
+      "routing": {
+        "failureTolerance": "low",
+        "worker": "frontier",
+        "reviewer": "frontier",
+        "checkCommand": "npm run self-check -- mapper && npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t3",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "t5",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-5",
+        "title": "Ticket 5 \u2014 State v3, lock, and atomic writes"
+      },
+      "dependsOn": [
+        "t1",
+        "t2"
+      ],
+      "routing": {
+        "failureTolerance": "standard",
+        "worker": "worker",
+        "reviewer": "worker",
+        "checkCommand": "npm run self-check -- state && npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "t4",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-4",
+        "title": "Ticket 4 \u2014 Cooldown interceptor pipeline"
+      },
+      "dependsOn": [
+        "t3",
+        "t5"
+      ],
+      "routing": {
+        "failureTolerance": "standard",
+        "worker": "worker",
+        "reviewer": "worker",
+        "checkCommand": "npm run self-check -- detection && npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "t9",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-9",
+        "title": "Ticket 9 \u2014 Debug log and redaction"
+      },
+      "dependsOn": [
+        "t3",
+        "t4",
+        "t5"
+      ],
+      "routing": {
+        "failureTolerance": "low",
+        "worker": "frontier",
+        "reviewer": "frontier",
+        "checkCommand": "npm run self-check -- redaction && npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t9",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    },
+    {
+      "id": "t12",
+      "ticket": {
+        "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#t12",
+        "title": "d1 integration check"
+      },
+      "dependsOn": [
+        "t1",
+        "t2",
+        "t3",
+        "t5",
+        "t4",
+        "t9"
+      ],
+      "routing": {
+        "failureTolerance": "standard",
+        "worker": "worker",
+        "reviewer": "worker",
+        "checkCommand": "npm run check"
+      },
+      "runtime": {
+        "status": "pending",
+        "fixAttempt": 0,
+        "handoverAttempt": 0,
+        "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t12",
+        "commitSha": null,
+        "acceptanceResult": null,
+        "agentId": null
+      },
+      "sync": {
+        "mirrored": false,
+        "pushed": false
+      },
+      "attributes": {},
+      "audit": []
+    }
+  ],
+  "stopFlag": {
+    "stopped": false,
+    "reason": null,
+    "stoppedAt": null
+  }
+}
