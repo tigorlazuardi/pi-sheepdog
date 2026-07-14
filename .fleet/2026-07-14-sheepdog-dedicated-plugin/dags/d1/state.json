@@ -558,7 +558,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "72b3e825a8046d5ef72eb33692a7bfbd36bd09fb",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t5-standards-28a9c89e-7bd3-4b36-bd42-c048b73da18c"
+        "agentId": "spawn-t5-standards-recovery-20260715"
       },
       "sync": {
         "mirrored": true,
@@ -571,8 +571,8 @@
         "resumeTieBreaker": "fail",
         "resumeTieBreakerAt": "2026-07-15T00:00:00Z",
         "resumeTieBreakerSummary": "Task worktree has viable uncommitted TypeScript migration but required check fails because self-check imports removed .js module; recover implementation.",
-        "lastWorkerCommitSha": "5339a8d5d5582c1f342f548b4f021a822de4d868",
-        "staleRecovery": "t5-fix-recovery",
+        "lastWorkerCommitSha": "72b3e825a8046d5ef72eb33692a7bfbd36bd09fb",
+        "staleRecovery": "t5-typescript-rename-recovered",
         "failureReason": "fixAttempt exceeded bound after TypeScript ESM standards finding",
         "mergeState": "conflict",
         "mergeStartedAt": "2026-07-14T23:36:43Z",
@@ -1016,6 +1016,23 @@
             "commitSha": "72b3e825a8046d5ef72eb33692a7bfbd36bd09fb"
           },
           "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "spawn-t5-standards-recovery-20260715",
+          "startedAt": "2026-07-14T23:42:51Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "standards reviewer spawned after stale worker recovery",
+          "attributes": {
+            "axis": "standards",
+            "class": "worker",
+            "resume": "stale-worker-recovery",
+            "commitSha": "72b3e825a8046d5ef72eb33692a7bfbd36bd09fb"
+          }
         }
       ]
     },
@@ -1037,12 +1054,12 @@
       },
       "runtime": {
         "status": "running",
-        "fixAttempt": 0,
+        "fixAttempt": 1,
         "handoverAttempt": 0,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4",
         "commitSha": "faeac92cbfbccd81f8e89f6a081f2552c21c5b50",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t4-standards-f0950693-c0fa-40ab-a8d9-d3dd322bcb1d"
+        "agentId": "spawn-t4-fix-f929f3f9-a8cc-4b24-b465-dee1f6063748"
       },
       "sync": {
         "mirrored": true,
@@ -1052,8 +1069,8 @@
         "reconciledAt": "2026-07-15T00:01:00Z",
         "reconciliation": "premature dispatch invalidated; no viable work beyond integration base",
         "blockedBy": "t5",
-        "lastVerdict": "PASS",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-implementer-1.md"
+        "lastVerdict": "FAIL",
+        "lastReportRef": "scripts/self-check.mjs:106"
       },
       "audit": [
         {
@@ -1084,17 +1101,38 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t4-standards-f0950693-c0fa-40ab-a8d9-d3dd322bcb1d",
           "startedAt": "2026-07-14T23:41:58Z",
-          "endedAt": null,
+          "endedAt": "2026-07-14T23:42:45Z",
           "status": "ok",
           "error": null,
-          "summary": "standards reviewer spawned",
+          "summary": "Detection self-check duplicates production parser; drift already hides real behavior. Test shared detector logic, not reduced copy.",
           "attributes": {
             "attempt": "1",
             "class": "worker",
             "axis": "standards",
-            "commitSha": "faeac92cbfbccd81f8e89f6a081f2552c21c5b50"
+            "commitSha": "faeac92cbfbccd81f8e89f6a081f2552c21c5b50",
+            "verdict": "FAIL",
+            "finding": "duplicated-detection-logic"
           },
-          "reportRef": null
+          "reportRef": "scripts/self-check.mjs:106"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "spawn-t4-fix-f929f3f9-a8cc-4b24-b465-dee1f6063748",
+          "startedAt": "2026-07-14T23:42:45Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "review-fix implementer spawned",
+          "attributes": {
+            "attempt": "2",
+            "class": "worker",
+            "resume": "review-fix",
+            "fixAttempt": "1",
+            "reviewAxis": "standards"
+          },
+          "reportRef": "scripts/self-check.mjs:106"
         }
       ]
     },
@@ -1169,8 +1207,8 @@
     }
   ],
   "stopFlag": {
-    "stopped": false,
-    "reason": null,
-    "stoppedAt": null
+    "stopped": true,
+    "reason": "Refusing to force-push after origin/main changed externally while recording t4 standards-fix spawn; local state commit 68151d6 is not durable on origin. Remote main is 878b60ea84f7bb9be3ceb5267d2b8f69d092f3b8.",
+    "stoppedAt": "2026-07-14T23:42:56Z"
   }
 }
