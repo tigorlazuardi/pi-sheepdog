@@ -556,9 +556,9 @@
         "fixAttempt": 3,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
-        "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
+        "commitSha": "5339a8d5d5582c1f342f548b4f021a822de4d868",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t5-fix-49c4ba90-d9b6-4cf4-b35a-6322aa6d6a00"
+        "agentId": null
       },
       "sync": {
         "mirrored": true,
@@ -567,12 +567,12 @@
       "attributes": {
         "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
         "lastVerdict": "PASS",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-spec-1.md",
-        "resumeTieBreaker": "pass",
-        "resumeTieBreakerAt": "2026-07-14T23:33:18Z",
-        "resumeTieBreakerSummary": "stale standards-review-fix worker absent; orchestrator ran routing.checkCommand successfully with task commit present",
-        "lastWorkerCommitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
-        "staleRecovery": "review-standards",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-8.md",
+        "resumeTieBreaker": "fail",
+        "resumeTieBreakerAt": "2026-07-15T00:00:00Z",
+        "resumeTieBreakerSummary": "Task worktree has viable uncommitted TypeScript migration but required check fails because self-check imports removed .js module; recover implementation.",
+        "lastWorkerCommitSha": "5339a8d5d5582c1f342f548b4f021a822de4d868",
+        "staleRecovery": "t5-fix-recovery",
         "failureReason": "fixAttempt exceeded bound after TypeScript ESM standards finding",
         "mergeState": "merged-pending-fix",
         "mergeStartedAt": "2026-07-14T23:36:43Z",
@@ -920,19 +920,44 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-fix-49c4ba90-d9b6-4cf4-b35a-6322aa6d6a00",
           "startedAt": "2026-07-14T23:39:29Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": "Fix worker spawned for two persisted review findings.",
+          "endedAt": "2026-07-15T00:00:00Z",
+          "status": "error",
+          "error": "stale running agent absent on relay resume; tie-breaker failed after uncommitted TypeScript rename left self-check importing deleted .js module",
+          "summary": "Stale fix worker absent. Existing uncommitted TypeScript rename makes required state self-check fail, so a bounded fresh fix is dispatched.",
           "attributes": {
             "attempt": "9",
             "class": "worker",
             "resume": "review-fix",
             "fixAttempt": "3",
             "reviewAxes": "standards,spec",
-            "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d"
+            "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
+            "resumeTieBreaker": "fail",
+            "resumeTieBreakerAt": "2026-07-15T00:00:00Z"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-3.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "spawn-t5-recover-20260715-000000",
+          "startedAt": "2026-07-15T00:00:00Z",
+          "endedAt": "2026-07-14T23:41:37Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Resolved d1/t5 integration conflict. Preserved mapper config plus v3 lock/atomic state semantics; required check passed.",
+          "attributes": {
+            "attempt": "10",
+            "class": "worker",
+            "resume": "review-fix",
+            "fixAttempt": "3",
+            "reviewAxes": "standards,spec",
+            "commitSha": "5339a8d5d5582c1f342f548b4f021a822de4d868",
+            "resumeTieBreaker": "fail",
+            "acceptanceResult": "pass",
+            "verdict": "PASS"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-8.md"
         }
       ]
     },
@@ -953,19 +978,23 @@
         "checkCommand": "npm run self-check -- detection && npm run check"
       },
       "runtime": {
-        "status": "running",
+        "status": "pending",
         "fixAttempt": 0,
         "handoverAttempt": 0,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4",
         "commitSha": null,
         "acceptanceResult": null,
-        "agentId": "spawn-t4-b6201aa6-0057-4b2e-a409-518c7bfd0171"
+        "agentId": null
       },
       "sync": {
         "mirrored": true,
         "pushed": false
       },
-      "attributes": {},
+      "attributes": {
+        "reconciledAt": "2026-07-15T00:01:00Z",
+        "reconciliation": "premature dispatch invalidated; no viable work beyond integration base",
+        "blockedBy": "t5"
+      },
       "audit": [
         {
           "role": "worker",
@@ -973,13 +1002,15 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t4-b6201aa6-0057-4b2e-a409-518c7bfd0171",
           "startedAt": "2026-07-14T23:39:19Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": "implementer spawned",
+          "endedAt": "2026-07-15T00:01:00Z",
+          "status": "error",
+          "error": "dispatched before required dependency t5 passed; stale worker absent and branch contains only integration base",
+          "summary": "Premature t4 dispatch reconciled. No viable task work exists; returned node to pending until t5 passes.",
           "attributes": {
             "attempt": "1",
-            "class": "worker"
+            "class": "worker",
+            "dependencyGate": "blocked",
+            "recovery": "no-task-commit"
           },
           "reportRef": null
         }
