@@ -178,7 +178,7 @@ export function mergeDetectedWakeEntry(existing, next) {
     delayMs: next.delayMs,
     redactedExcerpt: next.redactedExcerpt,
     source: next.source,
-    adapter: existing?.adapter,
+    adapter: next.adapter ?? existing?.adapter,
     humanNotifiedAt: existing?.humanNotifiedAt,
     modelRef: next.modelRef,
     sessionId: next.sessionId,

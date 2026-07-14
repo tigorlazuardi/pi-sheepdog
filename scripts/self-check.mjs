@@ -152,6 +152,23 @@ async function checkConcurrentMerge() {
   }
 }
 
+function checkMapperConfig() {
+  const adapterIds = new Set(["generic", "anthropic", "openai-compatible"]);
+  const rules = [
+    { match: "(", adapter: "anthropic", scope: "bad/*" },
+    { match: "^bad/", adapter: "bogus", scope: "bad/*" },
+    { match: "^openrouter/anthropic/(.+)$", adapter: "anthropic", scope: "openrouter/anthropic/*", args: { credentialFile: "$HOME/.claude/.credentials.json" } },
+  ].flatMap((rule) => {
+    try {
+      return adapterIds.has(rule.adapter) ? [{ ...rule, regex: new RegExp(rule.match) }] : [];
+    } catch { return []; }
+  });
+  assert.equal(rules.length, 1);
+  const match = rules.find((rule) => rule.regex.test("openrouter/anthropic/claude-sonnet-5"));
+  assert.equal(match?.scope, "openrouter/anthropic/*");
+  assert.equal(match?.args.credentialFile, "$HOME/.claude/.credentials.json");
+}
+
 const mode = process.argv[2];
 
 if (mode === "time") {
@@ -161,6 +178,9 @@ if (mode === "time") {
   checkStateSemantics();
   await checkConcurrentMerge();
   console.log("self-check: state ok");
+} else if (mode === "mapper") {
+  checkMapperConfig();
+  console.log("self-check: mapper ok");
 } else {
   console.error(`unknown self-check mode: ${mode || "(missing)"}`);
   process.exit(1);
