@@ -558,7 +558,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
         "acceptanceResult": "pass",
-        "agentId": null
+        "agentId": "t5-frontier-spec-20260715-0002"
       },
       "sync": {
         "mirrored": true,
@@ -1280,6 +1280,23 @@
             "recovery": "direct-fresh-review"
           },
           "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t5-frontier-spec-20260715-0002",
+          "startedAt": "2026-07-14T23:55:39Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Fresh frontier spec review spawned after standards pass.",
+          "attributes": {
+            "axis": "spec",
+            "class": "frontier",
+            "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-10.md"
         }
       ]
     },
