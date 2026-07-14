@@ -558,7 +558,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
         "acceptanceResult": "pass",
-        "agentId": null
+        "agentId": "spawn-t5-merge-resolve-c229cd40-bfef-415d-b8ee-49af721fa1e8"
       },
       "sync": {
         "mirrored": true,
@@ -574,8 +574,9 @@
         "lastWorkerCommitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
         "staleRecovery": "review-standards",
         "failureReason": "fixAttempt exceeded bound after TypeScript ESM standards finding",
-        "mergeState": "merge-started",
-        "mergeStartedAt": "2026-07-14T23:36:43Z"
+        "mergeState": "conflict",
+        "mergeStartedAt": "2026-07-14T23:36:43Z",
+        "mergeConflictAt": "2026-07-14T23:37:04Z"
       },
       "audit": [
         {
@@ -865,6 +866,25 @@
             "tokens": "0"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-spec-1.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "spawn-t5-merge-resolve-c229cd40-bfef-415d-b8ee-49af721fa1e8",
+          "startedAt": "2026-07-14T23:37:04Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "merge-conflict resolver spawned",
+          "attributes": {
+            "attempt": "8",
+            "class": "worker",
+            "operation": "resolve-merge",
+            "sourceBranch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
+            "targetBranch": "fleet/2026-07-14-sheepdog-dedicated-plugin/dag/d1"
+          },
+          "reportRef": null
         }
       ]
     },
