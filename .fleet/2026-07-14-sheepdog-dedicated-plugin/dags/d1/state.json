@@ -574,9 +574,9 @@
         "lastWorkerCommitSha": "5339a8d5d5582c1f342f548b4f021a822de4d868",
         "staleRecovery": "t5-fix-recovery",
         "failureReason": "fixAttempt exceeded bound after TypeScript ESM standards finding",
-        "mergeState": "merged-pending-fix",
+        "mergeState": "conflict",
         "mergeStartedAt": "2026-07-14T23:36:43Z",
-        "mergeConflictAt": "2026-07-14T23:37:04Z",
+        "mergeConflictAt": "2026-07-14T23:41:57Z",
         "blockedReason": null,
         "staleReviewerTieBreaker": "pass",
         "staleReviewerTieBreakerAt": "2026-07-14T23:37:54Z",
@@ -958,6 +958,24 @@
             "verdict": "PASS"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-8.md"
+        },
+        {
+          "role": "orchestrator",
+          "agentType": "codex-fleet-orchestrator",
+          "model": "gpt-5.6-terra",
+          "agentId": "orchestrator",
+          "startedAt": "2026-07-14T23:41:57Z",
+          "endedAt": "2026-07-14T23:41:57Z",
+          "status": "ok",
+          "error": null,
+          "summary": "DAG merge still conflicts in scripts/self-check.mjs; no conflict was resolved by orchestrator.",
+          "attributes": {
+            "action": "merge",
+            "result": "conflict",
+            "task": "t5",
+            "dag": "d1"
+          },
+          "reportRef": null
         }
       ]
     },
