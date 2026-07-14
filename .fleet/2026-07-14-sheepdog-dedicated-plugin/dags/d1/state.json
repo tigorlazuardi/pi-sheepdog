@@ -558,7 +558,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "8a52412822b3e19829e6327e85719d46497c07c9",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t5-standards-resume-20260715"
+        "agentId": "spawn-t5-frontier-standards-resume-20260715"
       },
       "sync": {
         "mirrored": true,
@@ -1101,10 +1101,10 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-standards-resume-20260715",
           "startedAt": "2026-07-14T23:44:33Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": null,
+          "endedAt": "2026-07-14T23:44:54Z",
+          "status": "error",
+          "error": "stale reviewer absent on relay resume",
+          "summary": "Stale standards reviewer was absent; frontier standards review restarted after persisted escalation.",
           "attributes": {
             "class": "worker",
             "axis": "standards",
@@ -1112,6 +1112,23 @@
             "commitSha": "72b3e825a8046d5ef72eb33692a7bfbd36bd09fb"
           },
           "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "spawn-t5-frontier-standards-resume-20260715",
+          "startedAt": "2026-07-14T23:44:54Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "frontier standards reviewer spawned after relay recovery",
+          "attributes": {
+            "axis": "standards",
+            "class": "frontier",
+            "recovery": "stale-reviewer",
+            "commitSha": "8a52412822b3e19829e6327e85719d46497c07c9"
+          }
         }
       ]
     },
@@ -1302,8 +1319,8 @@
     }
   ],
   "stopFlag": {
-    "stopped": true,
-    "reason": "Refusing to force-push after origin/main changed externally while recording t4 standards-fix spawn; local state commit 68151d6 is not durable on origin. Remote main is 878b60ea84f7bb9be3ceb5267d2b8f69d092f3b8.",
-    "stoppedAt": "2026-07-14T23:42:56Z"
+    "stopped": false,
+    "reason": null,
+    "stoppedAt": null
   }
 }
