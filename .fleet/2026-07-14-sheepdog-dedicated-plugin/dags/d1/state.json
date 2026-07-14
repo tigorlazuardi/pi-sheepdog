@@ -558,7 +558,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "5339a8d5d5582c1f342f548b4f021a822de4d868",
         "acceptanceResult": "pass",
-        "agentId": null
+        "agentId": "spawn-t5-merge-resolve-e8a85aad-fac3-43fd-bae2-559bfe2f6e72"
       },
       "sync": {
         "mirrored": true,
@@ -976,6 +976,24 @@
             "dag": "d1"
           },
           "reportRef": null
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "spawn-t5-merge-resolve-e8a85aad-fac3-43fd-bae2-559bfe2f6e72",
+          "startedAt": "2026-07-14T23:42:08Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Spawned fresh merge-conflict resolver for scripts/self-check.mjs.",
+          "attributes": {
+            "class": "worker",
+            "resume": "merge-conflict",
+            "commitSha": "5339a8d5d5582c1f342f548b4f021a822de4d868",
+            "verdict": "PASS"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-8.md"
         }
       ]
     },
