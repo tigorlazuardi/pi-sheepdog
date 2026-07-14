@@ -558,10 +558,10 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
         "acceptanceResult": "pass",
-        "agentId": "pending-review-t5-standards-32f2cfa4-3f26-4d09-874e-d66a668e8b24"
+        "agentId": null
       },
       "sync": {
-        "mirrored": false,
+        "mirrored": true,
         "pushed": true
       },
       "attributes": {
@@ -767,20 +767,22 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "5776bfd4-f2c1-4bc",
           "startedAt": "2026-07-14T23:33:18Z",
-          "endedAt": "2026-07-14T23:33:46Z",
+          "endedAt": "2026-07-14T23:34:38Z",
           "status": "ok",
           "error": null,
-          "summary": "Shared state production/self-check logic in `extensions/sheepdog-state.js`; preserved state-v3 behavior. Required checks passed.",
+          "summary": "Ticket 5 state v3 meets standards: locked read-merge-write, atomic rename, per-scope dedupe, manual sticky behavior, legacy-safe load.",
           "attributes": {
             "axis": "standards",
             "class": "worker",
             "resume": "stale-worker-tie-breaker",
             "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
-            "acceptanceResult": "pass",
+            "acceptanceResult": "PASS",
             "verdict": "PASS",
-            "tokens": "0"
+            "tokens": "0",
+            "checksRun": "false",
+            "taskCommit": "c5ad02bef46783982386dc688cd61819be1309c6"
           },
-          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-review-fix.md"
+          "reportRef": "reports/fleet/d1-t5-reviewer-standards.md"
         },
         {
           "role": "reviewer",
@@ -798,6 +800,25 @@
             "axis": "standards",
             "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d"
           }
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "e2146ead-3d42-4f9",
+          "startedAt": "2026-07-14T23:34:38Z",
+          "endedAt": "2026-07-14T23:34:58Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Standards review passed for the recovered Ticket 5 commit; required checks passed.",
+          "attributes": {
+            "axis": "spec",
+            "class": "worker",
+            "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
+            "verdict": "PASS",
+            "acceptanceResult": "pass"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-review-fix.md"
         }
       ]
     },
