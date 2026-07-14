@@ -511,9 +511,36 @@ function loadState(): StateFileV2 | null {
 function saveState(state: StateFileV2): void {
   try {
     fs.mkdirSync(getStateDir(), { recursive: true });
-    fs.writeFileSync(getStatePath(), JSON.stringify(state, null, 2), "utf8");
+    withStateLock(() => {
+      const statePath = getStatePath();
+      const tempPath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
+      fs.writeFileSync(tempPath, JSON.stringify(state, null, 2), "utf8");
+      fs.renameSync(tempPath, statePath);
+    });
   } catch {
     // fail open: an unpersisted timer still fires for this process's lifetime.
+  }
+}
+
+function withStateLock<T>(fn: () => T): T {
+  const lockPath = `${getStatePath()}.lock`;
+  const deadline = Date.now() + 1_000;
+
+  while (true) {
+    try {
+      const fd = fs.openSync(lockPath, "wx");
+      try {
+        return fn();
+      } finally {
+        fs.closeSync(fd);
+        fs.rmSync(lockPath, { force: true });
+      }
+    } catch (error) {
+      if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST" || Date.now() >= deadline) {
+        throw error;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
   }
 }
 
