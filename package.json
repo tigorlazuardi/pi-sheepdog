@@ -28,6 +28,7 @@
   "scripts": {
     "docs:dev": "npm --prefix docs run dev",
     "docs:build": "npm --prefix docs run build",
+    "self-check": "node ./scripts/self-check.mjs",
     "check": "npm run docs:build && npm pack --dry-run"
   },
   "peerDependencies": {

@@ -585,17 +585,65 @@ function formatRemaining(ms: number): string {
   return parts.join(" ") || "0s";
 }
 
+const LOCAL_WAKE_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+const LOCAL_WAKE_WEEKDAY_FORMAT = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+});
+
+const LOCAL_WAKE_MONTH_DAY_FORMAT = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+});
+
+const LOCAL_WAKE_MONTH_DAY_YEAR_FORMAT = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+function localDayStart(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function diffLocalDays(left: Date, right: Date): number {
+  return Math.round((localDayStart(left) - localDayStart(right)) / 86_400_000);
+}
+
+function formatLocalWakeTime(date: Date, now = new Date()): string {
+  const dayDiff = diffLocalDays(date, now);
+  const time = LOCAL_WAKE_TIME_FORMAT.format(date);
+
+  if (dayDiff === 0) {
+    return `today ${time}`;
+  }
+  if (dayDiff === 1) {
+    return `tomorrow ${time}`;
+  }
+  if (dayDiff > 1 && dayDiff < 7) {
+    return `${LOCAL_WAKE_WEEKDAY_FORMAT.format(date)} ${time}`;
+  }
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${LOCAL_WAKE_MONTH_DAY_FORMAT.format(date)} ${time}`;
+  }
+  return `${LOCAL_WAKE_MONTH_DAY_YEAR_FORMAT.format(date)} ${time}`;
+}
+
 // Wall-clock wake time in the host machine's local timezone. HH:mm normally,
 // HH:mm:ss when under a minute remains (matches the spec's footer format).
 function formatWallClock(iso: string, remainingMs: number): string {
   const d = new Date(iso);
+  if (remainingMs >= 60_000) {
+    return formatLocalWakeTime(d);
+  }
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  if (remainingMs < 60_000) {
-    const ss = String(d.getSeconds()).padStart(2, "0");
-    return `${hh}:${mm}:${ss}`;
-  }
-  return `${hh}:${mm}`;
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
 }
 
 // --- /sheepdog panel (read-only, v1) -----------------------------------------
@@ -641,8 +689,8 @@ class RateLimitPanel implements Component {
     if (this.entries.length === 0) {
       lines.push(row(` ${th.fg("dim", "no pending sheepdog scopes")}`));
     } else {
-      const scopeW = 22;
-      const wakeW = 8;
+      const scopeW = 18;
+      const wakeW = 18;
       const remW = 11;
       const header =
         ` ${pad(th.fg("dim", "scope"), scopeW)} ${pad(th.fg("dim", "wake"), wakeW)} ` +
@@ -756,7 +804,7 @@ export default function (pi: ExtensionAPI) {
       "",
       `Source: ${entry.source}`,
       `Detail: ${entry.sourceExcerpt}`,
-      `Scheduled wake: ${entry.wakeAt}`,
+      `Scheduled wake: ${formatLocalWakeTime(new Date(entry.wakeAt))}`,
       `Working directory: ${entry.cwd}`,
     ];
     if (entry.modelRef) {
