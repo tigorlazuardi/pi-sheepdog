@@ -16,7 +16,7 @@
       "id": "t1",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-1",
-        "title": "Ticket 1 \u2014 Rebrand paths, commands, and status identity"
+        "title": "Ticket 1 — Rebrand paths, commands, and status identity"
       },
       "dependsOn": [],
       "routing": {
@@ -26,26 +26,176 @@
         "checkCommand": "npm run check"
       },
       "runtime": {
-        "status": "pending",
-        "fixAttempt": 0,
-        "handoverAttempt": 0,
+        "status": "passed",
+        "fixAttempt": 1,
+        "handoverAttempt": 2,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t1",
-        "commitSha": null,
-        "acceptanceResult": null,
+        "commitSha": "35e75262872ba420bb4cbe1e5ee86e3cf54b0539",
+        "acceptanceResult": "pass",
         "agentId": null
       },
       "sync": {
-        "mirrored": false,
-        "pushed": false
+        "mirrored": true,
+        "pushed": true
       },
-      "attributes": {},
-      "audit": []
+      "attributes": {
+        "lastVerdict": "PASS",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t1-reviewer-spec-1.md"
+      },
+      "audit": [
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.4",
+          "agentId": "d0079dea-778e-40b",
+          "startedAt": "2026-07-14T14:08:34Z",
+          "endedAt": "2026-07-14T14:14:23Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Rebrand code and docs are partially applied, but verification and required notes file were not completed before the turn limit.",
+          "attributes": {
+            "attempt": "1",
+            "class": "worker",
+            "commitSha": "[REDACTED:GTK_A11Y]",
+            "acceptanceResult": "skipped",
+            "checkCommand": "npm run check",
+            "verdict": "HANDOVER"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t1-implementer-1-handover.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.4",
+          "agentId": "579e5948-1651-4e8",
+          "startedAt": "2026-07-14T14:14:43Z",
+          "endedAt": "2026-07-14T14:28:12Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Ticket 1 selesai dengan rebrand command/path/status ke `sheepdog`, legacy footer key dibersihkan, dan docs/README diselaraskan. `npm run check` lulus setelah memasang dependensi docs di worktree.",
+          "attributes": {
+            "attempt": "2",
+            "class": "worker",
+            "resume": "handover",
+            "commitSha": "2611ec26f00b0e0d7ed73a638e73e6ddb52297fd",
+            "acceptanceResult": "pass",
+            "verdict": "PASS"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t1-implementer-2.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "gpt-5.4",
+          "agentId": "173e5085-b5b4-496",
+          "startedAt": "2026-07-14T14:29:29Z",
+          "endedAt": "2026-07-14T14:31:44Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Diff melanggar standar persistensi state: saveState() masih write langsung ke file final tanpa short lock + temp file + rename atomik. Itu perlu dibereskan sebelum lolos axis standards.",
+          "attributes": {
+            "attempt": "1",
+            "class": "worker",
+            "axis": "standards",
+            "commitSha": "2611ec26f00b0e0d7ed73a638e73e6ddb52297fd",
+            "fixedPoint": "b2712ae9c5ecd10740fac4f3a12ba5be0ab7c35f",
+            "verdict": "FAIL"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t1-reviewer-standards-1.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.4",
+          "agentId": "0f44b9c1-d06d-422",
+          "startedAt": "2026-07-14T14:32:18Z",
+          "endedAt": "2026-07-14T14:34:30Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Atomic lock+temp+rename state save sudah diimplementasi dan `npm run check` lulus, tetapi commit baru dan notes implementer belum sempat dibuat. Kontrak task retry ini jadi belum selesai penuh.",
+          "attributes": {
+            "attempt": "3",
+            "class": "worker",
+            "resume": "review-fix",
+            "fixAttempt": "1",
+            "reviewAxis": "standards",
+            "commitSha": "2611ec26f00b0e0d7ed73a638e73e6ddb52297fd",
+            "acceptanceResult": "pass",
+            "pendingCommit": "true",
+            "pendingNotes": "true",
+            "verdict": "FAIL",
+            "wrapped": "true"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t1-reviewer-standards-1.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.4",
+          "agentId": "2dcd1846-9da8-4f1",
+          "startedAt": "2026-07-14T14:35:15Z",
+          "endedAt": "2026-07-14T14:36:41Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Menyelesaikan temuan reviewer dengan mempertahankan fix pending yang menambahkan lock singkat plus temp-file-rename atomik untuk `saveState()` Sheepdog. `npm run check` lulus.",
+          "attributes": {
+            "attempt": "4",
+            "class": "worker",
+            "resume": "handover",
+            "fixAttempt": "1",
+            "handoverAttempt": "2",
+            "reviewAxis": "standards",
+            "commitSha": "35e7526",
+            "acceptanceResult": "pass",
+            "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t1",
+            "verdict": "PASS"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t1-implementer-4.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "gpt-5.4",
+          "agentId": "bff828e8-d9bd-486",
+          "startedAt": "2026-07-14T14:53:16Z",
+          "endedAt": "2026-07-14T14:55:11Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Standards review clean. Diff follows CODING_STANDARDS.md for the dedicated Sheepdog command surface, dedicated paths, legacy footer cleanup, and locked atomic state writes.",
+          "attributes": {
+            "attempt": "2",
+            "class": "worker",
+            "axis": "standards",
+            "commitSha": "35e75262872ba420bb4cbe1e5ee86e3cf54b0539"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t1-reviewer-standards-2.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "gpt-5.4",
+          "agentId": "a0d68fe2-46ff-4b8",
+          "startedAt": "2026-07-14T14:55:49Z",
+          "endedAt": "2026-07-14T14:57:08Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Ticket 1 matches the requested rebrand scope: legacy command surface is removed, Sheepdog paths/status identity are in place, and README/docs were updated. `npm run check` passed in the task worktree.",
+          "attributes": {
+            "attempt": "1",
+            "class": "worker",
+            "axis": "spec",
+            "commitSha": "35e75262872ba420bb4cbe1e5ee86e3cf54b0539",
+            "acceptanceResult": "pass"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t1-reviewer-spec-1.md"
+        }
+      ]
     },
     {
       "id": "t2",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-2",
-        "title": "Ticket 2 \u2014 Local human time formatter"
+        "title": "Ticket 2 — Local human time formatter"
       },
       "dependsOn": [
         "t1"
@@ -57,26 +207,141 @@
         "checkCommand": "npm run self-check -- time && npm run check"
       },
       "runtime": {
-        "status": "pending",
-        "fixAttempt": 0,
+        "status": "passed",
+        "fixAttempt": 1,
         "handoverAttempt": 0,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t2",
-        "commitSha": null,
-        "acceptanceResult": null,
+        "commitSha": "6d81856193896e6a0135a503d0dfef03b725c1ec",
+        "acceptanceResult": "pass",
         "agentId": null
       },
       "sync": {
-        "mirrored": false,
-        "pushed": false
+        "mirrored": true,
+        "pushed": true
       },
-      "attributes": {},
-      "audit": []
+      "attributes": {
+        "fixedPoint": "35e75262872ba420bb4cbe1e5ee86e3cf54b0539",
+        "lastVerdict": "PASS",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t2-reviewer-spec-1.md",
+        "resumeTieBreaker": "pass",
+        "resumeTieBreakerAt": "2026-07-14T22:15:22Z",
+        "resumeTieBreakerSummary": "orchestrator bootstrapped docs deps in task worktree and reran checkCommand successfully",
+        "reviewAxis": "spec",
+        "dagBranchSha": "6d81856193896e6a0135a503d0dfef03b725c1ec",
+        "dagBranchPushedAt": "2026-07-14T22:44:55Z",
+        "dagBranchDurability": "recorded"
+      },
+      "audit": [
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.4",
+          "agentId": "1d51e5d4-5fdd-4e3",
+          "startedAt": "2026-07-14T15:03:33Z",
+          "endedAt": "2026-07-14T22:15:22Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Ticket 2 selesai: semua tampilan waktu yang user-facing sekarang pakai formatter lokal ramah manusia, dan self-check waktu sudah ditambahkan. Acceptance check penuh gagal karena `npm run check` mentok saat build docs: `astro: command not found`.",
+          "attributes": {
+            "attempt": "1",
+            "class": "worker",
+            "fixedPoint": "35e75262872ba420bb4cbe1e5ee86e3cf54b0539",
+            "commitSha": "48704040674b2a5e4f0affe9528f64c01621ae15",
+            "acceptanceResult": "fail",
+            "checkCommand": "npm run self-check -- time && npm run check",
+            "verdict": "FAIL"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t2-implementer-1.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "gpt-5.4",
+          "agentId": "d814746d-3ad6-4b1",
+          "startedAt": "2026-07-14T22:16:10Z",
+          "endedAt": "2026-07-14T22:17:30Z",
+          "status": "ok",
+          "error": null,
+          "summary": "FAIL: handoff belum memenuhi CODING_STANDARDS karena `npm run check` masih gagal menurut catatan implementer. Perbaiki lingkungan/docs build sampai `docs:build` dan `check` benar-benar lulus sebelum handoff ulang.",
+          "attributes": {
+            "attempt": "1",
+            "class": "worker",
+            "axis": "standards",
+            "commitSha": "48704040674b2a5e4f0affe9528f64c01621ae15",
+            "fixedPoint": "35e75262872ba420bb4cbe1e5ee86e3cf54b0539",
+            "verdict": "FAIL"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t2-reviewer-standards-1.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.4",
+          "agentId": "cb294bfc-31f6-438",
+          "startedAt": "2026-07-14T22:18:20Z",
+          "endedAt": "2026-07-14T15:30:10Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Memperbaiki kegagalan handoff review dengan membuat `npm run docs:build` meng-install dependency docs saat `astro` belum ada di worktree fresh. Ticket 2 tetap scoped; `npm run self-check -- time && npm run check` sekarang lolos.",
+          "attributes": {
+            "attempt": "2",
+            "class": "worker",
+            "resume": "review-fix",
+            "fixAttempt": "1",
+            "reviewAxis": "standards",
+            "commitSha": "6d81856193896e6a0135a503d0dfef03b725c1ec",
+            "acceptanceResult": "pass",
+            "verdict": "PASS"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t2-implementer-2.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "gpt-5.4",
+          "agentId": "02e8bf21-5ea3-45a",
+          "startedAt": "2026-07-14T15:31:59Z",
+          "endedAt": "2026-07-14T15:32:46Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Diff mengikuti CODING_STANDARDS.md untuk axis standards; perubahan menjaga waktu human-facing tetap local-friendly dan check path tetap sederhana tanpa menambah abstraksi yang tidak perlu.",
+          "attributes": {
+            "attempt": "2",
+            "class": "worker",
+            "axis": "standards",
+            "commitSha": "6d81856193896e6a0135a503d0dfef03b725c1ec",
+            "fixedPoint": "35e75262872ba420bb4cbe1e5ee86e3cf54b0539",
+            "verdict": "PASS"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t2-reviewer-standards-2.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "gpt-5.4",
+          "agentId": "01ec2c17-43dd-4c6",
+          "startedAt": "2026-07-14T15:35:34Z",
+          "endedAt": "2026-07-14T15:36:30Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Ticket 2 matches the spec: human-facing wake times now use local friendly formatting in the footer, panel, and follow-up notification, while state keeps UTC ISO timestamps. `npm run self-check -- time && npm run check` passed in this worktree.",
+          "attributes": {
+            "attempt": "1",
+            "class": "worker",
+            "axis": "spec",
+            "commitSha": "6d81856193896e6a0135a503d0dfef03b725c1ec",
+            "acceptanceResult": "pass",
+            "verdict": "PASS"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t2-reviewer-spec-1.md"
+        }
+      ]
     },
     {
       "id": "t3",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-3",
-        "title": "Ticket 3 \u2014 Adapter and mapper config"
+        "title": "Ticket 3 — Adapter and mapper config"
       },
       "dependsOn": [
         "t1",
@@ -89,26 +354,187 @@
         "checkCommand": "npm run self-check -- mapper && npm run check"
       },
       "runtime": {
-        "status": "pending",
-        "fixAttempt": 0,
-        "handoverAttempt": 0,
+        "status": "passed",
+        "fixAttempt": 1,
+        "handoverAttempt": 2,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t3",
-        "commitSha": null,
-        "acceptanceResult": null,
+        "commitSha": "863c5f331abc14a6678ae4e5fb4c1cc2746ab8db",
+        "acceptanceResult": "pass",
         "agentId": null
       },
       "sync": {
         "mirrored": false,
-        "pushed": false
+        "pushed": true
       },
-      "attributes": {},
-      "audit": []
+      "attributes": {
+        "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
+        "lastVerdict": "ESCALATE",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t3-reviewer-spec-1.md",
+        "resumeTieBreaker": "fail",
+        "resumeTieBreakerAt": "2026-07-14T16:03:59Z",
+        "resumeTieBreakerSummary": "Resume found the pending implementer gone. Orchestrator ran `npm run self-check -- mapper && npm run check`; it failed immediately because `self-check` has no `mapper` mode and the branch still has no task commit, so the handover attempt is respawned.",
+        "lastWorkerCommitSha": "863c5f331abc14a6678ae4e5fb4c1cc2746ab8db",
+        "escalationReason": "frontier review confirmed secret/credential surface; spec fit and checks passed",
+        "escalationAt": "2026-07-14T16:23:10Z",
+        "frontierReviewDisposition": "accepted-after-frontier-escalation"
+      },
+      "audit": [
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "gpt-5.5",
+          "agentId": "cc65fa9c-9afe-433",
+          "startedAt": "2026-07-14T15:50:25Z",
+          "endedAt": "2026-07-14T15:56:53Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Reached turn limit before implementing Ticket 3. Read implementer contract, verified branch/worktree, read ticket/standards/TDD, and inspected current extension/self-check; no code changes made.",
+          "attributes": {
+            "attempt": "1",
+            "class": "frontier",
+            "commitSha": "none",
+            "acceptanceResult": "skipped",
+            "blocker": "turn_limit",
+            "changes": "none",
+            "verdict": "HANDOVER"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t3-implementer-1-handover.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "gpt-5.5",
+          "agentId": "pending-t3-af0c0a0a-3551-48e2-bbae-5d7a5dc0a4d4",
+          "startedAt": "2026-07-14T15:58:39Z",
+          "endedAt": "2026-07-14T16:03:59Z",
+          "status": "error",
+          "error": "stale running agent missing on resume; tie-breaker failed and no commit present",
+          "summary": "Resume found the pending implementer gone. Orchestrator ran `npm run self-check -- mapper && npm run check`; it failed immediately because `self-check` has no `mapper` mode and the branch still has no task commit, so the handover attempt is respawned.",
+          "attributes": {
+            "attempt": "2",
+            "class": "frontier",
+            "resume": "handover",
+            "handoverAttempt": "1",
+            "resumeTieBreaker": "fail",
+            "resumeTieBreakerAt": "2026-07-14T16:03:59Z"
+          }
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "gpt-5.5",
+          "agentId": "pending-t3-5e1edf47-ebcb-4780-81c0-3cb16c3a6bbc",
+          "startedAt": "2026-07-14T16:03:59Z",
+          "endedAt": "2026-07-14T16:10:32Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Implemented mapper config creation/validation, ordered adapter/scope/args resolution, Anthropic arg validation with path expansion, and mapper self-check coverage.",
+          "attributes": {
+            "attempt": "3",
+            "class": "frontier",
+            "resume": "handover",
+            "handoverAttempt": "2",
+            "resumeReason": "stale-agent-recovery",
+            "commitSha": "d997dfd74ae746547344c439f39c4a09aab38055",
+            "acceptanceResult": "pass",
+            "verdict": "PASS",
+            "checkCommand": "npm run self-check -- mapper && npm run check"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t3-implementer-3.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "gpt-5.5",
+          "agentId": "83f2cdcf-ff4a-4c9",
+          "startedAt": "2026-07-14T16:10:57Z",
+          "endedAt": "2026-07-14T16:13:23Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Diff touches secrets/credential handling via mapper adapter args. Standards finding: adapterArgs are persisted into state.json without redaction and should be removed or reduced to an explicitly safe/redacted subset.",
+          "attributes": {
+            "attempt": "1",
+            "class": "frontier",
+            "axis": "standards",
+            "commitSha": "d997dfd74ae746547344c439f39c4a09aab38055",
+            "verdict": "ESCALATE",
+            "lowTolerance": "secrets",
+            "findings": "1"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t3-reviewer-standards-1.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "gpt-5.5",
+          "agentId": "aee43860-7953-41f",
+          "startedAt": "2026-07-14T16:13:23Z",
+          "endedAt": "2026-07-14T16:17:37Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Removed persisted mapper adapter args so credential-bearing config remains runtime-only and cannot land in state.",
+          "attributes": {
+            "attempt": "4",
+            "class": "frontier",
+            "resume": "review-fix",
+            "fixAttempt": "1",
+            "reviewAxis": "standards",
+            "escalated": "true",
+            "commitSha": "863c5f331abc14a6678ae4e5fb4c1cc2746ab8db",
+            "acceptanceResult": "pass",
+            "verdict": "PASS",
+            "checkCommand": "npm run self-check -- mapper && npm run check"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t3-implementer-4.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "gpt-5.5",
+          "agentId": "2ae299c8-488c-4e8",
+          "startedAt": "2026-07-14T16:17:37Z",
+          "endedAt": "2026-07-14T16:21:13Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Prior standards finding is resolved; mapper args are no longer persisted into wake state. Diff still touches credential/secret handling, so it must escalate per reviewer contract.",
+          "attributes": {
+            "attempt": "2",
+            "class": "frontier",
+            "axis": "standards",
+            "commitSha": "863c5f331abc14a6678ae4e5fb4c1cc2746ab8db",
+            "verdict": "ESCALATE",
+            "lowTolerance": "secrets",
+            "priorFinding": "resolved"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t3-reviewer-standards-2.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "gpt-5.4",
+          "agentId": "1827f051-d7f7-43d",
+          "startedAt": "2026-07-14T16:21:13Z",
+          "endedAt": "2026-07-14T16:23:10Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Spec-axis review found the mapper/config work matches Ticket 3 and the required check command passed. Escalating anyway per reviewer contract because this diff touches credential/secret handling via adapter args and credential-path config.",
+          "attributes": {
+            "attempt": "1",
+            "class": "frontier",
+            "axis": "spec",
+            "commitSha": "863c5f331abc14a6678ae4e5fb4c1cc2746ab8db",
+            "verdict": "ESCALATE",
+            "acceptanceResult": "pass"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t3-reviewer-spec-1.md"
+        }
+      ]
     },
     {
       "id": "t5",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-5",
-        "title": "Ticket 5 \u2014 State v3, lock, and atomic writes"
+        "title": "Ticket 5 — State v3, lock, and atomic writes"
       },
       "dependsOn": [
         "t1",
@@ -122,25 +548,199 @@
       },
       "runtime": {
         "status": "pending",
-        "fixAttempt": 0,
-        "handoverAttempt": 0,
+        "fixAttempt": 2,
+        "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
-        "commitSha": null,
+        "commitSha": "c5ad02bef46783982386dc688cd61819be1309c6",
         "acceptanceResult": null,
         "agentId": null
       },
       "sync": {
         "mirrored": false,
-        "pushed": false
+        "pushed": true
       },
-      "attributes": {},
-      "audit": []
+      "attributes": {
+        "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
+        "lastVerdict": "HANDOVER",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-2.md",
+        "resumeTieBreaker": "fail",
+        "resumeTieBreakerAt": "2026-07-14T16:03:59Z",
+        "resumeTieBreakerSummary": "Resume found the pending implementer gone. Orchestrator ran `npm run self-check -- state && npm run check`; it failed in `scripts/self-check.mjs` with `ReferenceError: Bun is not defined`, and there is still no task commit, so the handover attempt is respawned.",
+        "lastWorkerCommitSha": "c5ad02bef46783982386dc688cd61819be1309c6",
+        "staleRecovery": "pending-check"
+      },
+      "audit": [
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.4",
+          "agentId": "428e52fb-b891-432",
+          "startedAt": "2026-07-14T15:50:25Z",
+          "endedAt": "2026-07-14T15:56:53Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Ticket 5 state v3/lock work started but not finished; tree likely needs cleanup before it will typecheck. Required acceptance command was not run, no commit was created, and I wrote a handover for the next implementer.",
+          "attributes": {
+            "attempt": "1",
+            "class": "worker",
+            "commitSha": "none",
+            "acceptanceResult": "skipped",
+            "checksRun": "no",
+            "handover": "yes",
+            "verdict": "HANDOVER"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-1-handover.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.4",
+          "agentId": "pending-t5-d72a3608-aaf2-4841-bc85-9e0a5250a5b4",
+          "startedAt": "2026-07-14T15:58:39Z",
+          "endedAt": "2026-07-14T16:03:59Z",
+          "status": "error",
+          "error": "stale running agent missing on resume; tie-breaker failed and no commit present",
+          "summary": "Resume found the pending implementer gone. Orchestrator ran `npm run self-check -- state && npm run check`; it failed in `scripts/self-check.mjs` with `ReferenceError: Bun is not defined`, and there is still no task commit, so the handover attempt is respawned.",
+          "attributes": {
+            "attempt": "2",
+            "class": "worker",
+            "resume": "handover",
+            "handoverAttempt": "1",
+            "resumeTieBreaker": "fail",
+            "resumeTieBreakerAt": "2026-07-14T16:03:59Z"
+          }
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.4",
+          "agentId": "pending-t5-22453e9e-fea1-4592-87ca-6af6e6a50c25",
+          "startedAt": "2026-07-14T16:03:59Z",
+          "endedAt": "2026-07-14T16:10:32Z",
+          "status": "ok",
+          "error": null,
+          "summary": "State v3 persistence for sheepdog is now lock-guarded and atomic, with v2/v1-safe loading, startup silent expiry, and self-check coverage for sticky manual overrides plus concurrent scope merges. Required acceptance command passed cleanly after replacing the stale Bun-only self-check subprocess path with Node child processes.",
+          "attributes": {
+            "attempt": "3",
+            "class": "worker",
+            "resume": "handover",
+            "handoverAttempt": "2",
+            "resumeReason": "stale-agent-recovery",
+            "commitSha": "c28c25568454c1532543cb2be532813f7eebed9f",
+            "acceptanceResult": "pass",
+            "verdict": "PASS",
+            "checkCommand": "npm run self-check -- state && npm run check"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-3.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "gpt-5.4",
+          "agentId": "1ed9789e-cf88-4e6",
+          "startedAt": "2026-07-14T16:10:57Z",
+          "endedAt": "2026-07-14T16:13:23Z",
+          "status": "ok",
+          "error": null,
+          "summary": "No standards violations found on the state v3 migration and self-check additions. The diff keeps the required lock + temp-file + rename state-write pattern and adds the required state merge/lock self-check coverage.",
+          "attributes": {
+            "attempt": "1",
+            "class": "worker",
+            "axis": "standards",
+            "commitSha": "c28c25568454c1532543cb2be532813f7eebed9f",
+            "verdict": "PASS"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-1.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "gpt-5.4",
+          "agentId": "18bfe877-8b7c-478",
+          "startedAt": "2026-07-14T16:13:23Z",
+          "endedAt": "2026-07-14T16:17:37Z",
+          "status": "ok",
+          "error": null,
+          "summary": "State v3 semantics still deviate from the spec: `originalSource` is being populated for migrated and auto-detected entries instead of only when an auto wake is later edited into a manual override. Checks passed, but this ticket is not yet spec-correct.",
+          "attributes": {
+            "attempt": "1",
+            "class": "worker",
+            "axis": "spec",
+            "commitSha": "c28c25568454c1532543cb2be532813f7eebed9f",
+            "verdict": "FAIL",
+            "acceptanceResult": "pass"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-spec-1.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.4",
+          "agentId": "74ad781e-50fb-484",
+          "startedAt": "2026-07-14T16:17:37Z",
+          "endedAt": "2026-07-14T16:21:13Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Fixed the spec retry so `originalSource` stays unset for migrated and auto-detected entries, while preserving manual-override behavior. Required self-check and repo checks passed.",
+          "attributes": {
+            "attempt": "5",
+            "class": "worker",
+            "resume": "review-fix",
+            "fixAttempt": "1",
+            "reviewAxis": "spec",
+            "commitSha": "c5ad02bef46783982386dc688cd61819be1309c6",
+            "acceptanceResult": "pass",
+            "verdict": "PASS",
+            "checkCommand": "npm run self-check -- state && npm run check"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-5.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "gpt-5.4",
+          "agentId": "38616c82-bdd0-4e9",
+          "startedAt": "2026-07-14T16:21:13Z",
+          "endedAt": "2026-07-14T16:23:10Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Diff masih melanggar axis standards karena self-check menyalin ulang logika state/locking/normalization yang baru dari extension alih-alih menguji jalur produksi yang sama. Ini melanggar baseline Duplicated Code dan membuat check mudah drift dari implementasi sebenarnya.",
+          "attributes": {
+            "attempt": "2",
+            "class": "worker",
+            "axis": "standards",
+            "commitSha": "c5ad02bef46783982386dc688cd61819be1309c6",
+            "verdict": "FAIL",
+            "findingCount": "1"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-2.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "gpt-5.4",
+          "agentId": "ca75844e-42cd-4d0",
+          "startedAt": "2026-07-14T16:23:10Z",
+          "endedAt": "2026-07-14T23:30:38Z",
+          "status": "error",
+          "error": "stale running agent missing on crash resume; tie-breaker in progress",
+          "summary": "Crash-resume found stale running implementer; running state check before fresh bounded handover.",
+          "attributes": {
+            "attempt": "6",
+            "class": "worker",
+            "resume": "review-fix",
+            "fixAttempt": "2",
+            "reviewAxis": "standards",
+            "resumeTieBreaker": "pending"
+          }
+        }
+      ]
     },
     {
       "id": "t4",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-4",
-        "title": "Ticket 4 \u2014 Cooldown interceptor pipeline"
+        "title": "Ticket 4 — Cooldown interceptor pipeline"
       },
       "dependsOn": [
         "t3",
@@ -172,7 +772,7 @@
       "id": "t9",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-9",
-        "title": "Ticket 9 \u2014 Debug log and redaction"
+        "title": "Ticket 9 — Debug log and redaction"
       },
       "dependsOn": [
         "t3",
