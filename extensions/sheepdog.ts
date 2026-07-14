@@ -17,12 +17,9 @@
 //
 // This extension is intentionally not session-scoped (the state file is
 // global, not per-project or per-session) because a rate limit is a
-// provider/account-level condition, not a per-session one. If multiple pi
-// processes hit rate limits concurrently for *different* scopes, each gets
-// its own tracked entry (see "state v2" below); for the *same* scope,
-// whichever process wrote last wins — documented caveat, not a bug.
+// provider/account-level condition, not a per-session one.
 //
-// --- state v2: multi-scope -------------------------------------------------
+// --- state v3: multi-scope -------------------------------------------------
 //
 // Each detection is tagged with a dynamic
 // `scopeGlob` derived from the model in play at detection time (see
@@ -37,20 +34,17 @@
 // with no resolvable model (scopeGlob undefined) are filed under the
 // catch-all key "*" (see CATCHALL_SCOPE below).
 //
-// Dedupe is per-scope: for a given scope, the earliest wakeAt among pending
-// detections wins (see upsertDetectedState).
-//
-// state.json v1 (pre-multi-scope: a single global wakeAt, no `entries` map)
-// is migrated in place the first time it's read after upgrading: it gets
-// wrapped into `entries[scopeGlob ?? "*"]` and rewritten as v2 so no pending
-// wake is lost across the upgrade. See loadState() / migrateLegacyEntry().
+// Dedupe is per-scope: earliest automatic wake wins; manual overrides are
+// sticky until the entry reaches a terminal status. Updates are serialized
+// through a short file lock and always re-read the latest on-disk state under
+// that lock before writing a temp file + rename, so concurrent writers do not
+// drop unrelated scopes.
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { loadStateFile, mergeDetectedWakeEntry, updateStateFile } from "./sheepdog-state.js";
 
-const STATE_VERSION = 2;
 const STATUS_KEY = "sheepdog";
 const LEGACY_STATUS_KEY = "rate-limit-wakeup";
 
@@ -88,7 +82,8 @@ const SAFETY_BUFFER_MS = 60_000;
 // recompute the remaining delay when it fires, rather than firing early.
 const MAX_TIMEOUT_MS = 2_147_483_000;
 
-type WakeStatus = "pending" | "fired" | "cancelled";
+type WakeStatus = "pending" | "fired" | "cancelled" | "expired";
+type WakeOrigin = "auto" | "manual";
 type AdapterId = "generic" | "anthropic" | "openai-compatible";
 type AdapterArgs = Record<string, string>;
 
@@ -128,17 +123,20 @@ function visibleWidth(str: string): number {
 type RateLimitSource = "provider-429" | "agent_end";
 
 interface WakeEntry {
-  // Always equal to the key this entry is stored under in
-  // StateFileV2.entries — duplicated onto the entry itself so callers that
-  // only have the entry (e.g. inside a setTimeout closure) don't need to
-  // thread the key through separately.
+  // Always equal to the key this entry is stored under in state.entries —
+  // duplicated onto the entry itself so callers that only have the entry
+  // (e.g. inside a setTimeout closure) don't need to thread the key through
+  // separately.
   scopeGlob: string;
   status: WakeStatus;
+  origin: WakeOrigin;
   wakeAt: string; // ISO timestamp
   delayMs: number; // total delay from detection to wakeAt (including buffer, if any)
-  sourceExcerpt: string; // trimmed excerpt of the error text that triggered this
+  redactedExcerpt: string; // trimmed/redacted excerpt of the trigger text
   source: RateLimitSource;
+  originalSource?: RateLimitSource;
   adapter?: AdapterId;
+  humanNotifiedAt?: string;
   modelRef?: string; // e.g. "omniroute/cx/gpt-5.4", model detected on (if any)
   sessionId?: string;
   sessionFile?: string;
@@ -147,8 +145,8 @@ interface WakeEntry {
   updatedAt: string;
 }
 
-interface StateFileV2 {
-  version: 2;
+interface StateFileV3 {
+  version: 3;
   entries: Record<string, WakeEntry>;
 }
 
@@ -549,126 +547,25 @@ function computeScopeGlob(modelRef: string | undefined): string | undefined {
   return `${modelRef.slice(0, lastSlash)}/*`;
 }
 
-// --- state (v2, multi-scope) -------------------------------------------------
+// --- state (v3, multi-scope) -------------------------------------------------
 
-// Best-effort shape check for a v1 (single global wake) state file, so we
-// can migrate it without importing the old, no-longer-defined WakeState
-// type. Anything not matching this (or the current v2 shape) is treated as
-// corrupt/unreadable, same as before.
-function looksLikeLegacyV1(parsed: unknown): parsed is Record<string, unknown> {
-  if (!parsed || typeof parsed !== "object") {
-    return false;
-  }
-  const p = parsed as Record<string, unknown>;
-  return p.version === 1 && typeof p.wakeAt === "string";
+function loadState(): StateFileV3 | null {
+  return loadStateFile(getStatePath(), { catchallScope: CATCHALL_SCOPE }) as StateFileV3 | null;
 }
 
-function looksLikeV2(parsed: unknown): parsed is StateFileV2 {
-  if (!parsed || typeof parsed !== "object") {
-    return false;
-  }
-  const p = parsed as Record<string, unknown>;
-  return p.version === STATE_VERSION && !!p.entries && typeof p.entries === "object";
-}
-
-// Wraps a v1 legacy state object into a v2 WakeEntry. The source field
-// didn't exist in v1 — both the header-429 and agent_end paths wrote into
-// the same untagged WakeState — so we recover it heuristically from the
-// excerpt's format (only the header path ever wrote the
-// "provider response 429; ..." prefix, see parseProviderRateLimit above).
-function migrateLegacyEntry(legacy: Record<string, unknown>, scopeKey: string): WakeEntry {
-  const excerpt = typeof legacy.sourceExcerpt === "string" ? legacy.sourceExcerpt : "";
-  const source: RateLimitSource = excerpt.startsWith("provider response 429;") ? "provider-429" : "agent_end";
-  const status: WakeStatus =
-    legacy.status === "pending" || legacy.status === "fired" || legacy.status === "cancelled"
-      ? legacy.status
-      : "cancelled";
-  const now = new Date().toISOString();
-  return {
-    scopeGlob: scopeKey,
-    status,
-    wakeAt: typeof legacy.wakeAt === "string" ? legacy.wakeAt : now,
-    delayMs: typeof legacy.delayMs === "number" ? legacy.delayMs : 0,
-    sourceExcerpt: excerpt,
-    source,
-    adapter: "generic",
-    modelRef: typeof legacy.modelRef === "string" ? legacy.modelRef : undefined,
-    sessionId: typeof legacy.sessionId === "string" ? legacy.sessionId : undefined,
-    sessionFile: typeof legacy.sessionFile === "string" ? legacy.sessionFile : undefined,
-    cwd: typeof legacy.cwd === "string" ? legacy.cwd : process.cwd(),
-    createdAt: typeof legacy.createdAt === "string" ? legacy.createdAt : now,
-    updatedAt: typeof legacy.updatedAt === "string" ? legacy.updatedAt : now,
-  };
-}
-
-// Loads state.json, migrating a pre-multi-scope v1 file in place (and
-// persisting the migration immediately) so a pending v1 wake is never lost
-// across the upgrade. Returns null when the file doesn't exist or is
-// unreadable/corrupt.
-function loadState(): StateFileV2 | null {
+function updateState<T>(updater: (state: StateFileV3) => T): T | undefined {
   try {
-    const raw = fs.readFileSync(getStatePath(), "utf8");
-    const parsed: unknown = JSON.parse(raw);
-
-    if (looksLikeV2(parsed)) {
-      return parsed;
-    }
-
-    if (looksLikeLegacyV1(parsed)) {
-      const legacy = parsed as Record<string, unknown>;
-      const scopeKey =
-        typeof legacy.scopeGlob === "string" && legacy.scopeGlob.length > 0 ? legacy.scopeGlob : CATCHALL_SCOPE;
-      const migrated: StateFileV2 = {
-        version: STATE_VERSION,
-        entries: { [scopeKey]: migrateLegacyEntry(legacy, scopeKey) },
-      };
-      saveState(migrated);
-      return migrated;
-    }
-
-    return null;
+    return updateStateFile(
+      getStatePath(),
+      (state) => updater(state as StateFileV3),
+      { catchallScope: CATCHALL_SCOPE },
+    ) as T;
   } catch {
-    return null;
+    return undefined;
   }
 }
 
-function saveState(state: StateFileV2): void {
-  try {
-    fs.mkdirSync(getStateDir(), { recursive: true });
-    withStateLock(() => {
-      const statePath = getStatePath();
-      const tempPath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
-      fs.writeFileSync(tempPath, JSON.stringify(state, null, 2), "utf8");
-      fs.renameSync(tempPath, statePath);
-    });
-  } catch {
-    // fail open: an unpersisted timer still fires for this process's lifetime.
-  }
-}
-
-function withStateLock<T>(fn: () => T): T {
-  const lockPath = `${getStatePath()}.lock`;
-  const deadline = Date.now() + 1_000;
-
-  while (true) {
-    try {
-      const fd = fs.openSync(lockPath, "wx");
-      try {
-        return fn();
-      } finally {
-        fs.closeSync(fd);
-        fs.rmSync(lockPath, { force: true });
-      }
-    } catch (error) {
-      if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST" || Date.now() >= deadline) {
-        throw error;
-      }
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
-    }
-  }
-}
-
-function pendingEntries(state: StateFileV2 | null): WakeEntry[] {
+function pendingEntries(state: StateFileV3 | null): WakeEntry[] {
   if (!state) {
     return [];
   }
@@ -927,7 +824,7 @@ export default function (pi: ExtensionAPI) {
       "First check current status/output, then resume safely.",
       "",
       `Source: ${entry.source}`,
-      `Detail: ${entry.sourceExcerpt}`,
+      `Detail: ${entry.redactedExcerpt}`,
       `Scheduled wake: ${formatLocalWakeTime(new Date(entry.wakeAt))}`,
       `Working directory: ${entry.cwd}`,
     ];
@@ -945,19 +842,22 @@ export default function (pi: ExtensionAPI) {
   function fireWake(scopeKey: string): void {
     try {
       clearTimer(scopeKey);
-      const state = loadState();
-      const entry = state?.entries[scopeKey];
-      if (!state || !entry || entry.status !== "pending") {
+      const entry = updateState((state) => {
+        const current = state.entries[scopeKey];
+        if (!current || current.status !== "pending") {
+          return undefined;
+        }
+        current.status = "fired";
+        current.updatedAt = new Date().toISOString();
+        return { ...current };
+      });
+      if (!entry) {
         maybeStopTicker();
         return;
       }
 
-      entry.status = "fired";
-      entry.updatedAt = new Date().toISOString();
-      saveState(state);
       setFooterStatus();
       maybeStopTicker();
-
       pi.sendUserMessage(buildResumeMessage(entry), { deliverAs: "followUp" });
     } catch {
       // fail open: best-effort extension must not throw out of a timer callback.
@@ -1007,37 +907,27 @@ export default function (pi: ExtensionAPI) {
     const mapper = resolveMapper(modelRef);
     const scopeKey = mapper.scopeGlob;
 
-    const state = loadState() ?? { version: STATE_VERSION, entries: {} };
-    const existing = state.entries[scopeKey];
-    const existingPending = existing?.status === "pending" ? existing : undefined;
-
-    let entry: WakeEntry;
-    if (existingPending && new Date(existingPending.wakeAt).getTime() <= new Date(newWakeAt).getTime()) {
-      // The existing pending wake for this scope already fires at or before
-      // this new detection would — keep it as-is instead of pushing the
-      // timer later.
-      entry = { ...existingPending, updatedAt: now.toISOString() };
-    } else {
-      entry = {
+    const entry = updateState((state) => {
+      const existing = state.entries[scopeKey];
+      const nextEntry = mergeDetectedWakeEntry(existing, {
         scopeGlob: scopeKey,
-        status: "pending",
         wakeAt: newWakeAt,
         delayMs: parsed.delayMs,
-        sourceExcerpt: parsed.excerpt,
+        redactedExcerpt: parsed.excerpt,
         source,
         adapter: mapper.adapter,
         modelRef,
         sessionId: safeSessionId(ctx),
         sessionFile: safeSessionFile(ctx),
         cwd: ctx.cwd,
-        createdAt: existingPending?.createdAt ?? now.toISOString(),
-        updatedAt: now.toISOString(),
-      };
+        nowIso: now.toISOString(),
+      }) as WakeEntry;
+      state.entries[scopeKey] = nextEntry;
+      return { ...nextEntry };
+    });
+    if (entry) {
+      scheduleWake(entry);
     }
-
-    state.entries[scopeKey] = entry;
-    saveState(state);
-    scheduleWake(entry);
   }
 
   function lastAssistantMessage(messages: unknown[]): any | undefined {
@@ -1054,19 +944,22 @@ export default function (pi: ExtensionAPI) {
     try {
       lastCtx = ctx;
       clearLegacyStatus();
-      const state = loadState();
+      const state = updateState((current) => {
+        const now = Date.now();
+        for (const entry of Object.values(current.entries)) {
+          if (entry.status === "pending" && new Date(entry.wakeAt).getTime() <= now) {
+            entry.status = "expired";
+            entry.updatedAt = new Date(now).toISOString();
+          }
+        }
+        return { ...current };
+      }) ?? loadState();
       if (!state) {
         setFooterStatus();
         return;
       }
       for (const entry of Object.values(state.entries)) {
-        if (entry.status !== "pending") {
-          continue;
-        }
-        const remaining = new Date(entry.wakeAt).getTime() - Date.now();
-        if (remaining <= 0) {
-          fireWake(entry.scopeGlob);
-        } else {
+        if (entry.status === "pending") {
           scheduleWake(entry);
         }
       }
