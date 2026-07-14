@@ -363,7 +363,7 @@
         "agentId": null
       },
       "sync": {
-        "mirrored": false,
+        "mirrored": true,
         "pushed": true
       },
       "attributes": {
@@ -377,8 +377,11 @@
         "escalationReason": "frontier review confirmed secret/credential surface; spec fit and checks passed",
         "escalationAt": "2026-07-14T16:23:10Z",
         "frontierReviewDisposition": "accepted-after-frontier-escalation",
-        "mergeState": "starting",
-        "mergeStartedAt": "2026-07-14T23:30:56Z"
+        "mergeState": "merged",
+        "mergeStartedAt": "2026-07-14T23:30:56Z",
+        "dagBranchSha": "d5b63110bfc446600f44d24871be6ff2aef8baa7",
+        "dagBranchPushedAt": "2026-07-14T23:31:06Z",
+        "dagBranchDurability": "recorded"
       },
       "audit": [
         {
