@@ -552,13 +552,13 @@
         "checkCommand": "npm run self-check -- state && npm run check"
       },
       "runtime": {
-        "status": "passed",
+        "status": "running",
         "fixAttempt": 3,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
         "acceptanceResult": "pass",
-        "agentId": null
+        "agentId": "spawn-t5-fix-49c4ba90-d9b6-4cf4-b35a-6322aa6d6a00"
       },
       "sync": {
         "mirrored": true,
@@ -574,7 +574,7 @@
         "lastWorkerCommitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
         "staleRecovery": "review-standards",
         "failureReason": "fixAttempt exceeded bound after TypeScript ESM standards finding",
-        "mergeState": "merged",
+        "mergeState": "merged-pending-fix",
         "mergeStartedAt": "2026-07-14T23:36:43Z",
         "mergeConflictAt": "2026-07-14T23:37:04Z",
         "blockedReason": null,
@@ -583,7 +583,8 @@
         "staleReviewerTieBreakerSummary": "Task commit present and routing.checkCommand passed; resume integration-conflict resolution.",
         "dagBranchSha": "4ee7171a4a894e4fe79ef33924998f43b92fc14d",
         "dagBranchPushedAt": "2026-07-14T23:39:08Z",
-        "dagBranchDurability": "recorded"
+        "dagBranchDurability": "recorded",
+        "staleResolverRecovery": "actual integration merge commit 4ee7171 present; stale resolver superseded"
       },
       "audit": [
         {
@@ -880,10 +881,10 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-merge-resolve-c229cd40-bfef-415d-b8ee-49af721fa1e8",
           "startedAt": "2026-07-14T23:37:04Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": "merge-conflict resolver spawned",
+          "endedAt": "2026-07-14T23:39:29Z",
+          "status": "error",
+          "error": "stale merge resolver superseded; integration merge commit 4ee7171 exists",
+          "summary": "Stale merge resolver superseded after resume confirmed clean integration merge commit 4ee7171.",
           "attributes": {
             "attempt": "8",
             "class": "worker",
@@ -899,10 +900,10 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-merge-recovery-adf95ce8-22fe-44af-a149-abf375b0f253",
           "startedAt": "2026-07-14T23:37:54Z",
-          "endedAt": "2026-07-14T23:39:08Z",
-          "status": "ok",
-          "error": null,
-          "summary": "Resolved merge. Preserved T3 mapper behavior plus T5 state-v3 lock/atomic-write behavior.",
+          "endedAt": "2026-07-14T23:39:29Z",
+          "status": "error",
+          "error": "stale merge resolver superseded; integration merge commit 4ee7171 exists",
+          "summary": "Stale merge resolver superseded after resume confirmed clean integration merge commit 4ee7171.",
           "attributes": {
             "class": "worker",
             "resume": "merge-conflict",
@@ -912,6 +913,26 @@
             "tokens": "0"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-6.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "spawn-t5-fix-49c4ba90-d9b6-4cf4-b35a-6322aa6d6a00",
+          "startedAt": "2026-07-14T23:39:29Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Fix worker spawned for two persisted review findings.",
+          "attributes": {
+            "attempt": "9",
+            "class": "worker",
+            "resume": "review-fix",
+            "fixAttempt": "3",
+            "reviewAxes": "standards,spec",
+            "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-3.md"
         }
       ]
     },
