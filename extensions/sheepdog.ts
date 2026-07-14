@@ -139,7 +139,6 @@ interface WakeEntry {
   sourceExcerpt: string; // trimmed excerpt of the error text that triggered this
   source: RateLimitSource;
   adapter?: AdapterId;
-  adapterArgs?: AdapterArgs;
   modelRef?: string; // e.g. "omniroute/cx/gpt-5.4", model detected on (if any)
   sessionId?: string;
   sessionFile?: string;
@@ -1027,7 +1026,6 @@ export default function (pi: ExtensionAPI) {
         sourceExcerpt: parsed.excerpt,
         source,
         adapter: mapper.adapter,
-        adapterArgs: mapper.args,
         modelRef,
         sessionId: safeSessionId(ctx),
         sessionFile: safeSessionFile(ctx),
