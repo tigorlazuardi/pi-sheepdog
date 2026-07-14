@@ -552,13 +552,13 @@
         "checkCommand": "npm run self-check -- state && npm run check"
       },
       "runtime": {
-        "status": "running",
+        "status": "passed",
         "fixAttempt": 3,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t5-merge-recovery-adf95ce8-22fe-44af-a149-abf375b0f253"
+        "agentId": null
       },
       "sync": {
         "mirrored": true,
@@ -574,13 +574,16 @@
         "lastWorkerCommitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
         "staleRecovery": "review-standards",
         "failureReason": "fixAttempt exceeded bound after TypeScript ESM standards finding",
-        "mergeState": "conflict",
+        "mergeState": "merged",
         "mergeStartedAt": "2026-07-14T23:36:43Z",
         "mergeConflictAt": "2026-07-14T23:37:04Z",
         "blockedReason": null,
         "staleReviewerTieBreaker": "pass",
         "staleReviewerTieBreakerAt": "2026-07-14T23:37:54Z",
-        "staleReviewerTieBreakerSummary": "Task commit present and routing.checkCommand passed; resume integration-conflict resolution."
+        "staleReviewerTieBreakerSummary": "Task commit present and routing.checkCommand passed; resume integration-conflict resolution.",
+        "dagBranchSha": "4ee7171a4a894e4fe79ef33924998f43b92fc14d",
+        "dagBranchPushedAt": "2026-07-14T23:39:08Z",
+        "dagBranchDurability": "recorded"
       },
       "audit": [
         {
@@ -896,18 +899,19 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-merge-recovery-adf95ce8-22fe-44af-a149-abf375b0f253",
           "startedAt": "2026-07-14T23:37:54Z",
-          "endedAt": null,
+          "endedAt": "2026-07-14T23:39:08Z",
           "status": "ok",
           "error": null,
-          "summary": "Spawned bounded integration-conflict resolver after stale-reviewer tie-breaker passed.",
+          "summary": "Resolved merge. Preserved T3 mapper behavior plus T5 state-v3 lock/atomic-write behavior.",
           "attributes": {
             "class": "worker",
             "resume": "merge-conflict",
-            "commitSha": "66fa8947c2ee9715410826ecde1083b361a9e22d",
+            "commitSha": "4ee7171a4a894e4fe79ef33924998f43b92fc14d",
             "acceptanceResult": "pass",
-            "verdict": "PASS"
+            "verdict": "PASS",
+            "tokens": "0"
           },
-          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-spec-1.md"
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-6.md"
         }
       ]
     },
