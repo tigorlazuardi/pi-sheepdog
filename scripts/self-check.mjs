@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { loadStateFile, mergeDetectedWakeEntry, normalizeState, updateStateFile } from "../extensions/sheepdog-state.js";
+import { loadStateFile, mergeDetectedWakeEntry, normalizeState, updateStateFile } from "../extensions/sheepdog-state.ts";
 
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
   hour: "2-digit",
@@ -125,7 +125,7 @@ function checkStateSemantics() {
 
 function runNode(scriptPath, ...args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [scriptPath, ...args], { stdio: "inherit" });
+    const child = spawn(process.execPath, ["--experimental-strip-types", scriptPath, ...args], { stdio: "inherit" });
     child.on("error", reject);
     child.on("exit", (code) => resolve(code ?? 1));
   });
@@ -138,7 +138,7 @@ async function checkConcurrentMerge() {
     const statePath = path.join(root, "state.json");
     fs.writeFileSync(
       worker,
-      `import { updateStateFile } from ${JSON.stringify(new URL("../extensions/sheepdog-state.js", import.meta.url).pathname)};\nconst [statePath, scopeKey] = process.argv.slice(2);\nupdateStateFile(statePath, (state) => { state.entries[scopeKey] = { scopeGlob: scopeKey, status: "pending", origin: "auto", wakeAt: new Date().toISOString(), delayMs: 1, redactedExcerpt: scopeKey, source: "agent_end", cwd: process.cwd(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; });\n`,
+      `import { updateStateFile } from ${JSON.stringify(new URL("../extensions/sheepdog-state.ts", import.meta.url).pathname)};\nconst [statePath, scopeKey] = process.argv.slice(2);\nupdateStateFile(statePath, (state) => { state.entries[scopeKey] = { scopeGlob: scopeKey, status: "pending", origin: "auto", wakeAt: new Date().toISOString(), delayMs: 1, redactedExcerpt: scopeKey, source: "agent_end", cwd: process.cwd(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; });\n`,
       "utf8",
     );
     const [exitA, exitB] = await Promise.all([runNode(worker, statePath, "a/*"), runNode(worker, statePath, "b/*")]);

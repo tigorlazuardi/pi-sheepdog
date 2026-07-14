@@ -44,7 +44,7 @@ import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } f
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { loadStateFile, mergeDetectedWakeEntry, updateStateFile } from "./sheepdog-state.js";
+import { loadStateFile, mergeDetectedWakeEntry, updateStateFile } from "./sheepdog-state.ts";
 
 const STATUS_KEY = "sheepdog";
 const LEGACY_STATUS_KEY = "rate-limit-wakeup";

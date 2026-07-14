@@ -28,7 +28,7 @@
   "scripts": {
     "docs:dev": "npm --prefix docs run dev",
     "docs:build": "sh -c '[ -x docs/node_modules/.bin/astro ] || npm --prefix docs ci --no-audit --no-fund; npm --prefix docs run build'",
-    "self-check": "node ./scripts/self-check.mjs",
+    "self-check": "node --experimental-strip-types ./scripts/self-check.mjs",
     "check": "npm run docs:build && npm pack --dry-run"
   },
   "peerDependencies": {
