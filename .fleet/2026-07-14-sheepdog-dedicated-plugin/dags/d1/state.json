@@ -1120,7 +1120,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4",
         "commitSha": "faeac92cbfbccd81f8e89f6a081f2552c21c5b50",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t4-fix-f929f3f9-a8cc-4b24-b465-dee1f6063748"
+        "agentId": "spawn-t4-0a6e53ff-8f51-488f-b4cb-3d8a0cddb8dd"
       },
       "sync": {
         "mirrored": true,
@@ -1194,6 +1194,22 @@
             "reviewAxis": "standards"
           },
           "reportRef": "scripts/self-check.mjs:106"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "spawn-t4-0a6e53ff-8f51-488f-b4cb-3d8a0cddb8dd",
+          "startedAt": "2026-07-14T23:44:17Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Frontier worker spawned for Ticket 4.",
+          "attributes": {
+            "class": "frontier",
+            "attempt": "1"
+          },
+          "reportRef": null
         }
       ]
     },
