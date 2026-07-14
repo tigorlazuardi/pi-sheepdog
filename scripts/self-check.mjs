@@ -65,7 +65,6 @@ function migrateLegacyEntry(legacy, scopeKey) {
     delayMs: typeof legacy.delayMs === "number" ? legacy.delayMs : 0,
     redactedExcerpt,
     source,
-    originalSource: source,
     modelRef: typeof legacy.modelRef === "string" ? legacy.modelRef : undefined,
     sessionId: typeof legacy.sessionId === "string" ? legacy.sessionId : undefined,
     sessionFile: typeof legacy.sessionFile === "string" ? legacy.sessionFile : undefined,
@@ -134,7 +133,7 @@ function mergeAutoEntry(existing, nextWakeAtIso, nextDelayMs, excerpt) {
     delayMs: nextDelayMs,
     redactedExcerpt: excerpt,
     source: "agent_end",
-    originalSource: existing?.originalSource ?? "agent_end",
+    originalSource: existing?.origin === "manual" ? existing.originalSource : undefined,
     createdAt: existing?.createdAt ?? "created",
     updatedAt: "replaced",
     cwd: existing?.cwd ?? process.cwd(),
@@ -145,7 +144,7 @@ function checkStateSemantics() {
   const migrated = normalizeState({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", delayMs: 120000, sourceExcerpt: "provider response 429; retry-after=60" });
   assert.equal(migrated.version, 3);
   assert.equal(migrated.entries["*"].redactedExcerpt, "provider response 429; retry-after=60");
-  assert.equal(migrated.entries["*"].originalSource, "provider-429");
+  assert.equal(migrated.entries["*"].originalSource, undefined);
 
   const existingManual = {
     scopeGlob: "provider/*",
@@ -170,6 +169,11 @@ function checkStateSemantics() {
 
   const replaced = mergeAutoEntry(existingAuto, "2026-07-14T10:00:30.000Z", 30000, "earlier auto");
   assert.equal(replaced.wakeAt, "2026-07-14T10:00:30.000Z");
+  assert.equal(replaced.originalSource, undefined);
+
+  const existingEditedManual = { ...existingManual, source: "agent_end", originalSource: "provider-429" };
+  const preservedManual = mergeAutoEntry(existingEditedManual, "2026-07-14T10:00:20.000Z", 20000, "earlier auto");
+  assert.equal(preservedManual.originalSource, "provider-429");
 }
 
 function withFileLock(lockPath, fn) {
