@@ -932,20 +932,37 @@
         "checkCommand": "npm run self-check -- detection && npm run check"
       },
       "runtime": {
-        "status": "pending",
+        "status": "running",
         "fixAttempt": 0,
         "handoverAttempt": 0,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4",
         "commitSha": null,
         "acceptanceResult": null,
-        "agentId": null
+        "agentId": "spawn-t4-b6201aa6-0057-4b2e-a409-518c7bfd0171"
       },
       "sync": {
-        "mirrored": false,
+        "mirrored": true,
         "pushed": false
       },
       "attributes": {},
-      "audit": []
+      "audit": [
+        {
+          "role": "worker",
+          "agentType": "codex-worker",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "spawn-t4-b6201aa6-0057-4b2e-a409-518c7bfd0171",
+          "startedAt": "2026-07-14T23:39:19Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "implementer spawned",
+          "attributes": {
+            "attempt": "1",
+            "class": "worker"
+          },
+          "reportRef": null
+        }
+      ]
     },
     {
       "id": "t9",
