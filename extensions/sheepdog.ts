@@ -1,7 +1,6 @@
-// pi-sheepdog (rate-limit-wakeup): detects provider rate-limit/quota
-// conditions and schedules a follow-up message that resumes the
-// interrupted task once the cooldown has passed. Two independent detection
-// paths feed the same scheduler:
+// pi-sheepdog: detects provider rate-limit/quota conditions and schedules
+// a follow-up message that resumes the interrupted task once the cooldown
+// has passed. Two independent detection paths feed the same scheduler:
 //
 //   - after_provider_response: fires for every provider HTTP response,
 //     before the stream body is consumed. On a 429 we parse the wake time
@@ -11,12 +10,8 @@
 //     headers (or errors surfaced only as text). Parses "reset after ..."
 //     style phrasing out of the error message.
 //
-// A third, manual path exists via /rate-limit-wakeup-set for when the user
-// already knows the reset time (e.g. from a dashboard) and wants to just
-// set a timer directly, with a relative duration.
-//
-// State is persisted to a global JSON file under ~/.pi/agent/.cache so
-// pending wakes survive /reload and full process restarts: session_start
+// State is persisted to a global JSON file under the Pi agent dir's cache
+// so pending wakes survive /reload and full process restarts: session_start
 // re-reads the file, reschedules every remaining entry, or fires it
 // immediately if its wake time already passed while pi was not running.
 //
@@ -29,7 +24,7 @@
 //
 // --- state v2: multi-scope -------------------------------------------------
 //
-// Each detection (or manual /rate-limit-wakeup-set) is tagged with a dynamic
+// Each detection is tagged with a dynamic
 // `scopeGlob` derived from the model in play at detection time (see
 // computeModelRef / computeScopeGlob below): `omniroute/cx/gpt-5.4` ->
 // `omniroute/cx/*`, `anthropic/claude-sonnet-5` -> `anthropic/*`. There is no
@@ -43,9 +38,7 @@
 // catch-all key "*" (see CATCHALL_SCOPE below).
 //
 // Dedupe is per-scope: for a given scope, the earliest wakeAt among pending
-// detections wins (see upsertDetectedState). A manual /rate-limit-wakeup-set
-// always overwrites its target scope's entry outright — the user picked the
-// time on purpose, so it isn't subject to the "earliest wins" tie-break.
+// detections wins (see upsertDetectedState).
 //
 // state.json v1 (pre-multi-scope: a single global wakeAt, no `entries` map)
 // is migrated in place the first time it's read after upgrading: it gets
@@ -57,9 +50,29 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-const STATE_DIR = path.join(os.homedir(), ".pi", "agent", ".cache", "rate-limit-wakeup");
-const STATE_PATH = path.join(STATE_DIR, "state.json");
 const STATE_VERSION = 2;
+const STATUS_KEY = "sheepdog";
+const LEGACY_STATUS_KEY = "rate-limit-wakeup";
+
+function resolveAgentDir(): string {
+  return process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
+}
+
+function getStateDir(): string {
+  return path.join(resolveAgentDir(), ".cache", "sheepdog");
+}
+
+function getStatePath(): string {
+  return path.join(getStateDir(), "state.json");
+}
+
+function getSheepdogDir(): string {
+  return path.join(resolveAgentDir(), "sheepdog");
+}
+
+function getConfigPath(): string {
+  return path.join(getSheepdogDir(), "config.json");
+}
 
 // Scope key used for entries with no resolvable model (no ctx.model, or a
 // modelRef that couldn't be turned into a glob). Documented catch-all: any
@@ -67,9 +80,7 @@ const STATE_VERSION = 2;
 const CATCHALL_SCOPE = "*";
 
 // Safety buffer added on top of the parsed reset duration so we don't wake
-// up a few seconds before the provider actually lifts the limit. Only
-// applies to automatic detections (429 headers / agent_end text) — a manual
-// /rate-limit-wakeup-set uses the user's exact requested duration, no buffer.
+// up a few seconds before the provider actually lifts the limit.
 const SAFETY_BUFFER_MS = 60_000;
 
 // Node's setTimeout silently overflows for delays beyond ~24.8 days
@@ -99,8 +110,7 @@ function visibleWidth(str: string): number {
 
 // Which of the three paths produced this entry. "provider-429" = parsed
 // from a 429 response's headers; "agent_end" = parsed from error text;
-// "manual" = user ran /rate-limit-wakeup-set.
-type RateLimitSource = "provider-429" | "agent_end" | "manual";
+type RateLimitSource = "provider-429" | "agent_end";
 
 interface WakeEntry {
   // Always equal to the key this entry is stored under in
@@ -111,7 +121,7 @@ interface WakeEntry {
   status: WakeStatus;
   wakeAt: string; // ISO timestamp
   delayMs: number; // total delay from detection to wakeAt (including buffer, if any)
-  sourceExcerpt: string; // trimmed excerpt of the error text / manual note that triggered this
+  sourceExcerpt: string; // trimmed excerpt of the error text that triggered this
   source: RateLimitSource;
   modelRef?: string; // e.g. "omniroute/cx/gpt-5.4", model detected on (if any)
   sessionId?: string;
@@ -217,153 +227,6 @@ function parseRateLimitError(errorMessage: string): ParsedRateLimit | null {
     delayMs: durationMs + SAFETY_BUFFER_MS,
     excerpt: errorMessage.slice(0, 400),
   };
-}
-
-// --- manual duration parsing (/rate-limit-wakeup-set) -----------------------
-//
-// V1 = relative duration ONLY. Dependency-free (reuses the d/h/m/s tokens
-// above), but unlike parseDurationMs this is strict: the *entire* input
-// (after stripping whitespace) must be made of d/h/m/s tokens, or it's
-// rejected. Absolute time (colons, dates) and bare numbers (no unit,
-// ambiguous) get their own clearer error messages — see parseManualSetArgs.
-
-// Whole-token check used while walking whitespace-split argv tokens: does
-// this single token look like (part of) a duration, e.g. "1h30m", "2d",
-// "90s"? Individual tokens in "1h 29m 27s" each match this on their own.
-const DURATION_TOKEN_RE = /^(\d+[dhms])+$/i;
-
-// Extraction regex over a token run with whitespace already stripped, e.g.
-// "1h30m" or "1h29m27s" (spaces between tokens are allowed by the command
-// syntax, but are stripped before this runs).
-const DURATION_EXTRACT_RE = /(\d+)([dhms])/gi;
-
-const ABSOLUTE_LIKE_RE = /\d{1,2}:\d{2}|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4}/;
-const BARE_DIGITS_RE = /^\d+$/;
-
-// Strictly parses a compact (whitespace already removed) duration string
-// like "1h30m" or "2d3h15m" into milliseconds. Returns null unless the
-// *entire* string is consumed by consecutive d/h/m/s tokens with no gaps —
-// this is what rejects things like "15:30" or "90" that parseDurationMs
-// would otherwise happily skip over.
-function parseRelativeDurationStrict(compact: string): number | null {
-  if (!compact) {
-    return null;
-  }
-
-  const re = new RegExp(DURATION_EXTRACT_RE);
-  let match: RegExpExecArray | null;
-  let consumed = 0;
-  let ms = 0;
-  let matchedAny = false;
-
-  while ((match = re.exec(compact)) !== null) {
-    if (match.index !== consumed) {
-      // Gap or leftover garbage before this token (e.g. "1h:30m") — reject
-      // rather than silently skip it.
-      return null;
-    }
-    consumed = match.index + match[0].length;
-    matchedAny = true;
-    const n = Number.parseInt(match[1], 10);
-    if (!Number.isFinite(n)) {
-      return null;
-    }
-    switch (match[2].toLowerCase()) {
-      case "d":
-        ms += n * 86_400_000;
-        break;
-      case "h":
-        ms += n * 3_600_000;
-        break;
-      case "m":
-        ms += n * 60_000;
-        break;
-      case "s":
-        ms += n * 1_000;
-        break;
-    }
-  }
-
-  if (!matchedAny || consumed !== compact.length || ms <= 0) {
-    return null;
-  }
-  return ms;
-}
-
-type ManualSetParseResult = { ok: true; ms: number; scopeToken?: string } | { ok: false; error: string };
-
-const MANUAL_SET_USAGE =
-  "Usage: /rate-limit-wakeup-set <duration> [scope]  " +
-  "e.g. /rate-limit-wakeup-set 1h30m  or  /rate-limit-wakeup-set 2d3h omniroute/cx/*";
-
-/**
- * Parses `/rate-limit-wakeup-set <duration> [scope]` argument text.
- *
- * <duration> is one or more whitespace-separated d/h/m/s tokens (spaces
- * optional within a token, required between tokens and the trailing scope):
- * "30s", "1h30m", "1h 29m 27s", "2d3h15m" are all valid. Everything after
- * the duration tokens is treated as an optional scope glob, passed through
- * as-is (e.g. "omniroute/cx/*").
- *
- * Rejects (V1, relative-only): bare numbers ("90", "1530" — no unit,
- * ambiguous) and absolute-time-shaped input ("15:30", ISO dates — not
- * supported yet), each with a distinct error message.
- */
-function parseManualSetArgs(argsRaw: string): ManualSetParseResult {
-  const trimmed = argsRaw.trim();
-  if (!trimmed) {
-    return { ok: false, error: MANUAL_SET_USAGE };
-  }
-
-  const tokens = trimmed.split(/\s+/);
-  const durationTokens: string[] = [];
-  let i = 0;
-  while (i < tokens.length && DURATION_TOKEN_RE.test(tokens[i])) {
-    durationTokens.push(tokens[i]);
-    i += 1;
-  }
-
-  if (durationTokens.length === 0) {
-    const first = tokens[0];
-    // Bare-digits check runs first: JS's Date.parse() is lenient enough to
-    // accept plain numeric strings like "90" or "1530" (interpreting them as
-    // years or other date fragments) without throwing, so checking the
-    // Date.parse fallback before BARE_DIGITS_RE would misclassify these as
-    // "absolute time" instead of "no unit". ABSOLUTE_LIKE_RE-matching input
-    // (colons, dashes, slashes) never matches BARE_DIGITS_RE, so this
-    // reordering doesn't affect the "15:30" / ISO date cases below.
-    if (BARE_DIGITS_RE.test(first)) {
-      return {
-        ok: false,
-        error: `"${first}" has no unit — ambiguous. Use d/h/m/s, e.g. "${first}s" or "1h30m".`,
-      };
-    }
-    if (ABSOLUTE_LIKE_RE.test(first) || !Number.isNaN(Date.parse(first))) {
-      return {
-        ok: false,
-        error: `Absolute time not supported yet — use a relative duration instead (e.g. 1h30m, 2d3h). Got: "${first}"`,
-      };
-    }
-    return {
-      ok: false,
-      error: `Could not parse duration "${first}". Use combinations of d/h/m/s, e.g. 30s, 1h30m, 2d3h15m.`,
-    };
-  }
-
-  const ms = parseRelativeDurationStrict(durationTokens.join(""));
-  if (ms === null) {
-    return {
-      ok: false,
-      error: `Could not parse duration "${durationTokens.join(" ")}". Use combinations of d/h/m/s, e.g. 30s, 1h30m, 2d3h15m.`,
-    };
-  }
-
-  const remainder = tokens.slice(i);
-  if (remainder.length > 1) {
-    return { ok: false, error: `Unexpected extra arguments after scope: "${remainder.slice(1).join(" ")}"` };
-  }
-
-  return { ok: true, ms, scopeToken: remainder[0] };
 }
 
 // --- provider response (429) header parsing --------------------------------
@@ -563,34 +426,6 @@ function computeScopeGlob(modelRef: string | undefined): string | undefined {
   return `${modelRef.slice(0, lastSlash)}/*`;
 }
 
-// Resolves the scope key a *new* detection/manual-set for the current
-// context should be filed under: the computed glob, or CATCHALL_SCOPE when
-// no model-derived glob is available.
-function defaultScopeKey(ctx: ExtensionContext): string {
-  return computeScopeGlob(computeModelRef(ctx)) ?? CATCHALL_SCOPE;
-}
-
-// Turns a scopeGlob (as produced by computeScopeGlob, or CATCHALL_SCOPE) into
-// a RegExp, for display/overlap checks only — e.g. telling the user in
-// /rate-limit-wakeup whether the model they're currently on falls inside a
-// scope that's currently rate-limited. Not used for any dedupe/scheduling
-// decision.
-function globToRegExp(glob: string): RegExp {
-  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
-  return new RegExp(`^${escaped}$`);
-}
-
-function matchesScope(scopeGlob: string | undefined, modelRef: string | undefined): boolean {
-  if (!scopeGlob || !modelRef || scopeGlob === CATCHALL_SCOPE) {
-    return false;
-  }
-  try {
-    return globToRegExp(scopeGlob).test(modelRef);
-  } catch {
-    return false;
-  }
-}
-
 // --- state (v2, multi-scope) -------------------------------------------------
 
 // Best-effort shape check for a v1 (single global wake) state file, so we
@@ -648,7 +483,7 @@ function migrateLegacyEntry(legacy: Record<string, unknown>, scopeKey: string): 
 // unreadable/corrupt.
 function loadState(): StateFileV2 | null {
   try {
-    const raw = fs.readFileSync(STATE_PATH, "utf8");
+    const raw = fs.readFileSync(getStatePath(), "utf8");
     const parsed: unknown = JSON.parse(raw);
 
     if (looksLikeV2(parsed)) {
@@ -675,8 +510,8 @@ function loadState(): StateFileV2 | null {
 
 function saveState(state: StateFileV2): void {
   try {
-    fs.mkdirSync(STATE_DIR, { recursive: true });
-    fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), "utf8");
+    fs.mkdirSync(getStateDir(), { recursive: true });
+    fs.writeFileSync(getStatePath(), JSON.stringify(state, null, 2), "utf8");
   } catch {
     // fail open: an unpersisted timer still fires for this process's lifetime.
   }
@@ -736,7 +571,7 @@ function formatWallClock(iso: string, remainingMs: number): string {
   return `${hh}:${mm}`;
 }
 
-// --- /rate-limit TUI panel (read-only, V1) -----------------------------------
+// --- /sheepdog panel (read-only, v1) -----------------------------------------
 
 // Read-only overlay listing every tracked scope. No actions in V1 (see spec:
 // resume-now/delete are phase 2) — the only input handled is Escape to
@@ -773,11 +608,11 @@ class RateLimitPanel implements Component {
     const truncate = (s: string, max: number) => (visibleWidth(s) > max ? `${s.slice(0, Math.max(0, max - 1))}…` : s);
 
     lines.push(th.fg("border", `╭${"─".repeat(innerW)}╮`));
-    lines.push(row(` ${th.fg("accent", "⏰ rate limit scopes")}`));
+    lines.push(row(` ${th.fg("accent", "🐑 sheepdog scopes")}`));
     lines.push(row(""));
 
     if (this.entries.length === 0) {
-      lines.push(row(` ${th.fg("dim", "no pending rate-limit scopes")}`));
+      lines.push(row(` ${th.fg("dim", "no pending sheepdog scopes")}`));
     } else {
       const scopeW = 22;
       const wakeW = 8;
@@ -834,14 +669,25 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  function clearLegacyStatus(): void {
+    try {
+      if (lastCtx?.hasUI) {
+        lastCtx.ui.setStatus(LEGACY_STATUS_KEY, undefined);
+      }
+    } catch {
+      // fail open
+    }
+  }
+
   function setFooterStatus(): void {
     try {
+      clearLegacyStatus();
       if (!lastCtx?.hasUI) {
         return;
       }
       const pending = pendingEntries(loadState());
       if (pending.length === 0) {
-        lastCtx.ui.setStatus("rate-limit-wakeup", undefined);
+        lastCtx.ui.setStatus(STATUS_KEY, undefined);
         return;
       }
       pending.sort((a, b) => new Date(a.wakeAt).getTime() - new Date(b.wakeAt).getTime());
@@ -850,10 +696,7 @@ export default function (pi: ExtensionAPI) {
       const wallClock = formatWallClock(soonest.wakeAt, remaining);
       const extra = pending.length - 1;
       const suffix = extra > 0 ? ` +${extra} more` : "";
-      lastCtx.ui.setStatus(
-        "rate-limit-wakeup",
-        `⏰ rate limit wake ${wallClock} (in ${formatRemaining(remaining)})${suffix}`,
-      );
+      lastCtx.ui.setStatus(STATUS_KEY, `🐑 sheepdog wake ${wallClock} (in ${formatRemaining(remaining)})${suffix}`);
     } catch {
       // fail open
     }
@@ -996,36 +839,6 @@ export default function (pi: ExtensionAPI) {
     scheduleWake(entry);
   }
 
-  // Manual /rate-limit-wakeup-set upsert: always overwrites the target
-  // scope's entry outright (no earliest-wins dedupe) — the user explicitly
-  // picked this time, so a stale earlier automatic detection for the same
-  // scope shouldn't silently win over it.
-  function upsertManualState(ctx: ExtensionContext, scopeKey: string, wakeAt: Date, ms: number): WakeEntry {
-    const now = new Date();
-    const state = loadState() ?? { version: STATE_VERSION, entries: {} };
-    const existing = state.entries[scopeKey];
-
-    const entry: WakeEntry = {
-      scopeGlob: scopeKey,
-      status: "pending",
-      wakeAt: wakeAt.toISOString(),
-      delayMs: ms,
-      sourceExcerpt: `manual: set via /rate-limit-wakeup-set (${formatRemaining(ms)})`,
-      source: "manual",
-      modelRef: computeModelRef(ctx),
-      sessionId: safeSessionId(ctx),
-      sessionFile: safeSessionFile(ctx),
-      cwd: ctx.cwd,
-      createdAt: existing?.createdAt ?? now.toISOString(),
-      updatedAt: now.toISOString(),
-    };
-
-    state.entries[scopeKey] = entry;
-    saveState(state);
-    scheduleWake(entry);
-    return entry;
-  }
-
   function lastAssistantMessage(messages: unknown[]): any | undefined {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const message = messages[i] as any;
@@ -1039,8 +852,10 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     try {
       lastCtx = ctx;
+      clearLegacyStatus();
       const state = loadState();
       if (!state) {
+        setFooterStatus();
         return;
       }
       for (const entry of Object.values(state.entries)) {
@@ -1117,119 +932,25 @@ export default function (pi: ExtensionAPI) {
       clearInterval(statusTicker);
       statusTicker = undefined;
     }
+    clearLegacyStatus();
+    try {
+      lastCtx?.ui.setStatus(STATUS_KEY, undefined);
+    } catch {
+      // fail open
+    }
   });
 
-  pi.registerCommand("rate-limit-wakeup", {
-    description: "Show pending rate-limit wakeup timers, if any",
-    handler: async (_args, ctx) => {
-      const pending = pendingEntries(loadState());
-      if (pending.length === 0) {
-        ctx.ui.notify("No pending rate-limit wakeup.", "info");
-        return;
-      }
-
-      pending.sort((a, b) => new Date(a.wakeAt).getTime() - new Date(b.wakeAt).getTime());
-      const currentModelRef = computeModelRef(ctx);
-
-      const lines = pending.map((entry) => {
-        const remaining = new Date(entry.wakeAt).getTime() - Date.now();
-        let line =
-          `${entry.scopeGlob === CATCHALL_SCOPE ? "(untagged)" : entry.scopeGlob}: ` +
-          `fires in ${formatRemaining(remaining)} (at ${entry.wakeAt}), source: ${entry.source}`;
-        if (entry.modelRef) {
-          line += ` (from ${entry.modelRef})`;
-        }
-        if (currentModelRef) {
-          line += matchesScope(entry.scopeGlob, currentModelRef)
-            ? " — current model is within this scope"
-            : "";
-        }
-        return line;
-      });
-
-      ctx.ui.notify(`${pending.length} pending rate-limit wakeup(s):\n${lines.join("\n")}`, "info");
-    },
-  });
-
-  pi.registerCommand("rate-limit-wakeup-set", {
-    description: "Manually schedule a rate-limit wakeup: /rate-limit-wakeup-set <duration> [scope]",
-    handler: async (args, ctx) => {
-      lastCtx = ctx;
-      const parsedArgs = parseManualSetArgs(args ?? "");
-      if (!parsedArgs.ok) {
-        ctx.ui.notify(parsedArgs.error, "error");
-        return;
-      }
-
-      const scopeKey = parsedArgs.scopeToken ?? defaultScopeKey(ctx);
-      const wakeAt = new Date(Date.now() + parsedArgs.ms);
-      const entry = upsertManualState(ctx, scopeKey, wakeAt, parsedArgs.ms);
-      setFooterStatus();
-
-      ctx.ui.notify(
-        `Rate-limit wakeup set for scope \`${entry.scopeGlob}\`: fires in ${formatRemaining(parsedArgs.ms)} ` +
-          `(at ${formatWallClock(entry.wakeAt, parsedArgs.ms)}).`,
-        "info",
-      );
-    },
-  });
-
-  pi.registerCommand("rate-limit-wakeup-clear", {
-    description: "Cancel pending rate-limit wakeup timer(s): /rate-limit-wakeup-clear [scope]",
-    handler: async (args, ctx) => {
-      const scopeArg = (args ?? "").trim();
-      const state = loadState();
-      if (!state || Object.keys(state.entries).length === 0) {
-        ctx.ui.notify("No pending rate-limit wakeup to clear.", "info");
-        return;
-      }
-
-      if (scopeArg) {
-        const entry = state.entries[scopeArg];
-        if (!entry || entry.status !== "pending") {
-          ctx.ui.notify(`No pending rate-limit wakeup for scope \`${scopeArg}\`.`, "info");
-          return;
-        }
-        entry.status = "cancelled";
-        entry.updatedAt = new Date().toISOString();
-        saveState(state);
-        clearTimer(scopeArg);
-        maybeStopTicker();
-        setFooterStatus();
-        ctx.ui.notify(`Rate-limit wakeup for scope \`${scopeArg}\` cancelled.`, "info");
-        return;
-      }
-
-      let cleared = 0;
-      for (const entry of Object.values(state.entries)) {
-        if (entry.status === "pending") {
-          entry.status = "cancelled";
-          entry.updatedAt = new Date().toISOString();
-          cleared += 1;
-        }
-      }
-      if (cleared === 0) {
-        ctx.ui.notify("No pending rate-limit wakeup to clear.", "info");
-        return;
-      }
-      saveState(state);
-      clearAllTimers();
-      setFooterStatus();
-      ctx.ui.notify(`Cleared ${cleared} pending rate-limit wakeup(s).`, "info");
-    },
-  });
-
-  pi.registerCommand("rate-limit", {
-    description: "Open a read-only panel listing all tracked rate-limit scopes",
+  pi.registerCommand("sheepdog", {
+    description: "Show tracked sheepdog cooldown scopes",
     handler: async (_args, ctx: ExtensionCommandContext) => {
       const pending = pendingEntries(loadState());
 
       // Guard: the overlay component needs a real terminal. In non-TUI modes
       // (rpc/json/print) or when dialog UI isn't available, fall back to the
-      // same notify-list /rate-limit-wakeup uses.
+      // same notify-list this command uses in TUI-less modes.
       if (!ctx.hasUI || ctx.mode !== "tui") {
         if (pending.length === 0) {
-          ctx.ui.notify("No pending rate-limit scopes.", "info");
+          ctx.ui.notify(`No pending sheepdog scopes. Config: ${getConfigPath()}`, "info");
           return;
         }
         pending.sort((a, b) => new Date(a.wakeAt).getTime() - new Date(b.wakeAt).getTime());
@@ -1237,7 +958,7 @@ export default function (pi: ExtensionAPI) {
           const remaining = new Date(entry.wakeAt).getTime() - Date.now();
           return `${entry.scopeGlob === CATCHALL_SCOPE ? "(untagged)" : entry.scopeGlob}: ${formatWallClock(entry.wakeAt, remaining)} (in ${formatRemaining(remaining)}), source: ${entry.source}`;
         });
-        ctx.ui.notify(`${pending.length} pending rate-limit scope(s):\n${lines.join("\n")}`, "info");
+        ctx.ui.notify(`${pending.length} pending sheepdog scope(s):\n${lines.join("\n")}\nConfig: ${getConfigPath()}`, "info");
         return;
       }
 
@@ -1248,6 +969,13 @@ export default function (pi: ExtensionAPI) {
           overlayOptions: { anchor: "top-right", width: 74, margin: 2 },
         },
       );
+    },
+  });
+
+  pi.registerCommand("sheepdog config", {
+    description: "Show the sheepdog config path",
+    handler: async (_args, ctx) => {
+      ctx.ui.notify(`Sheepdog config path: ${getConfigPath()}`, "info");
     },
   });
 }

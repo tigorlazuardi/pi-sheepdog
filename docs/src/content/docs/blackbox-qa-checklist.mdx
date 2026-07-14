@@ -20,11 +20,10 @@ Use this page as the human acceptance checklist.
 - [ ] `/sheepdog config` exists.
 - [ ] Legacy `/rate-limit-wakeup*` commands are not the documented path.
 
-## Config creation
+## Config path
 
-- [ ] `/sheepdog config` creates `${agentDir}/sheepdog/config.json` when missing.
-- [ ] Generated file contains only `{ "mappers": [] }`.
-- [ ] Invalid rules warn without disabling later valid rules.
+- [ ] `/sheepdog config` reports `${agentDir}/sheepdog/config.json`.
+- [ ] The path resolves under `PI_CODING_AGENT_DIR` when set, otherwise `${HOME}/.pi/agent`.
 
 ## Wake scenarios
 
@@ -40,34 +39,14 @@ Use this page as the human acceptance checklist.
 - [ ] Sheepdog schedules a wake.
 - [ ] Duration-only text without a rate-limit indicator does not schedule a wake.
 
-### Manual panel path
+### Panel path
 
 - [ ] `/sheepdog` opens the interactive panel in TUI.
-- [ ] Add wake previews the local wake time before save.
-- [ ] Edit wake keeps manual override semantics.
-- [ ] Clear selected and clear all require confirmation.
+- [ ] Ticket 1 panel stays read-only.
+- [ ] Non-TUI output stays read-only and includes the config path.
 
-### Mismatch behavior
-
-- [ ] Create a due wake for one scope, then switch to a different main model.
-- [ ] No agent follow-up is sent.
-- [ ] One short human notice appears for that entry.
-- [ ] Wake remains pending until a matching model becomes active.
-
-### Startup overdue behavior
-
-- [ ] Start Pi after a pending wake time has already passed.
-- [ ] No wake message is sent at startup.
-- [ ] Wake becomes `expired` silently.
-
-### Busy behavior
-
-- [ ] Keep Pi busy when a matching wake becomes due.
-- [ ] Footer shows `ready, waiting for idle` behavior.
-- [ ] Follow-up waits until Pi is idle.
 
 ## Files and logs
 
 - [ ] State path is `${agentDir}/.cache/sheepdog/state.json`.
-- [ ] Debug log path is `${agentDir}/sheepdog/debug.log`.
-- [ ] Logs redact secrets and avoid full provider payloads.
+- [ ] Future config and debug files live under `${agentDir}/sheepdog/`.

@@ -12,56 +12,33 @@ status: current
 
 Primary operator entry point.
 
-In interactive TUI mode it should:
+In interactive TUI mode it currently:
 
-- open the Sheepdog panel,
-- list all wakes,
-- show relevance markers,
-- allow add, edit, clear selected, and clear all.
+- opens the Sheepdog panel,
+- lists tracked wakes,
+- stays read-only in Ticket 1.
 
-Outside interactive TUI it should:
+Outside interactive TUI it:
 
-- return read-only text status,
-- include the config path,
-- not expose write operations.
+- returns read-only text status,
+- includes the config path,
+- does not expose write operations.
 
 ### `/sheepdog config`
 
 Configuration helper.
 
-It should:
-
-- create a minimal config file if missing,
-- validate mapper rules,
-- print warnings for bad rules,
-- print example config guidance in command output.
+In Ticket 1 it prints the Sheepdog config path under the dedicated agent dir.
 
 ## Panel contract
 
-The panel is the only write UI in the current plan.
+Ticket 1 keeps the panel read-only.
 
-### Required panel actions
+It should:
 
-- Add wake
-- Edit wake
-- Clear selected wake
-- Clear all wakes
-
-### Add/edit fields
-
-- Scope glob
-- Relative duration
-
-### Required add/edit behavior
-
-- Default add scope to the current model scope when possible.
-- Preview local wake time before save.
-- Manual entries stay sticky until they fire, expire, or are cleared.
-
-### Required confirmations
-
-- Clear selected: confirm
-- Clear all: stronger confirm
+- show tracked scopes,
+- let the operator inspect pending wakes,
+- close cleanly without exposing CRUD actions.
 
 ## Not part of current contract
 
