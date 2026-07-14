@@ -1101,17 +1101,20 @@
           "model": "cx/gpt-5.6-terra",
           "agentId": "spawn-t5-standards-resume-20260715",
           "startedAt": "2026-07-14T23:44:33Z",
-          "endedAt": "2026-07-14T23:44:54Z",
-          "status": "error",
-          "error": "stale reviewer absent on relay resume",
-          "summary": "Stale standards reviewer was absent; frontier standards review restarted after persisted escalation.",
+          "endedAt": "2026-07-14T23:45:47Z",
+          "status": "ok",
+          "error": null,
+          "summary": "State diff follows standards: small helpers retain lock + temp-file + rename semantics. No low-tolerance surface introduced.",
           "attributes": {
             "class": "worker",
             "axis": "standards",
             "recovery": "stale-reviewer",
-            "commitSha": "72b3e825a8046d5ef72eb33692a7bfbd36bd09fb"
+            "commitSha": "72b3e825a8046d5ef72eb33692a7bfbd36bd09fb",
+            "verdict": "PASS",
+            "tokens": "176847",
+            "attempt": "2"
           },
-          "reportRef": null
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-2.md"
         },
         {
           "role": "reviewer",
