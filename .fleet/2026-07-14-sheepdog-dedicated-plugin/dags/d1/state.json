@@ -16,7 +16,7 @@
       "id": "t1",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-1",
-        "title": "Ticket 1 \u2014 Rebrand paths, commands, and status identity"
+        "title": "Ticket 1 — Rebrand paths, commands, and status identity"
       },
       "dependsOn": [],
       "routing": {
@@ -195,7 +195,7 @@
       "id": "t2",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-2",
-        "title": "Ticket 2 \u2014 Local human time formatter"
+        "title": "Ticket 2 — Local human time formatter"
       },
       "dependsOn": [
         "t1"
@@ -341,7 +341,7 @@
       "id": "t3",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-3",
-        "title": "Ticket 3 \u2014 Adapter and mapper config"
+        "title": "Ticket 3 — Adapter and mapper config"
       },
       "dependsOn": [
         "t1",
@@ -539,7 +539,7 @@
       "id": "t5",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-5",
-        "title": "Ticket 5 \u2014 State v3, lock, and atomic writes"
+        "title": "Ticket 5 — State v3, lock, and atomic writes"
       },
       "dependsOn": [
         "t1",
@@ -558,7 +558,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
         "acceptanceResult": "pass",
-        "agentId": "t5-frontier-standards-fresh-20260715"
+        "agentId": null
       },
       "sync": {
         "mirrored": true,
@@ -567,7 +567,7 @@
       "attributes": {
         "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
         "lastVerdict": "PASS",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-standards-1.md",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-10.md",
         "resumeTieBreaker": "fail",
         "resumeTieBreakerAt": "2026-07-15T00:00:00Z",
         "resumeTieBreakerSummary": "Task worktree has viable uncommitted TypeScript migration but required check fails because self-check imports removed .js module; recover implementation.",
@@ -1229,18 +1229,20 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t5-frontier-standards-recovery-20260715-0001",
           "startedAt": "2026-07-14T23:53:31Z",
-          "endedAt": null,
+          "endedAt": "2026-07-14T23:55:31Z",
           "status": "ok",
           "error": null,
-          "summary": "Fresh frontier standards review spawned for remediation commit.",
+          "summary": "Remediation removes malformed duplicate parser/model fragments, shares mapper implementation with self-check, preserves first-match validation, and keeps credential values out of warnings. No standards violations remain.",
           "attributes": {
             "axis": "standards",
             "class": "frontier",
             "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
             "attempt": "7",
-            "recovery": "stale-reviewer"
+            "recovery": "stale-reviewer",
+            "verdict": "PASS",
+            "tokens": "14820"
           },
-          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-standards-1.md"
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-10.md"
         },
         {
           "role": "reviewer",
@@ -1285,7 +1287,7 @@
       "id": "t4",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-4",
-        "title": "Ticket 4 \u2014 Cooldown interceptor pipeline"
+        "title": "Ticket 4 — Cooldown interceptor pipeline"
       },
       "dependsOn": [
         "t3",
@@ -1401,7 +1403,7 @@
       "id": "t9",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-9",
-        "title": "Ticket 9 \u2014 Debug log and redaction"
+        "title": "Ticket 9 — Debug log and redaction"
       },
       "dependsOn": [
         "t3",
