@@ -558,7 +558,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "8a52412822b3e19829e6327e85719d46497c07c9",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t5-frontier-standards-resume-20260715"
+        "agentId": "spawn-t5-spec-resume-20260715"
       },
       "sync": {
         "mirrored": true,
@@ -1132,6 +1132,24 @@
             "recovery": "stale-reviewer",
             "commitSha": "8a52412822b3e19829e6327e85719d46497c07c9"
           }
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-reviewer",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "spawn-t5-spec-resume-20260715",
+          "startedAt": "2026-07-14T23:46:11Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": null,
+          "attributes": {
+            "class": "worker",
+            "axis": "spec",
+            "commitSha": "72b3e825a8046d5ef72eb33692a7bfbd36bd09fb",
+            "checkCommand": "npm run self-check -- state && npm run check"
+          },
+          "reportRef": null
         }
       ]
     },
