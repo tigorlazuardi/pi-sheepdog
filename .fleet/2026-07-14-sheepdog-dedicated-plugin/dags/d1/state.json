@@ -552,13 +552,13 @@
         "checkCommand": "npm run self-check -- state && npm run check"
       },
       "runtime": {
-        "status": "running",
-        "fixAttempt": 3,
+        "status": "failed",
+        "fixAttempt": 4,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "8a52412822b3e19829e6327e85719d46497c07c9",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t5-frontier-fix-01a55819-8e5b-4e88-aa00-8ff7439a0bb5"
+        "agentId": null
       },
       "sync": {
         "mirrored": true,
@@ -566,14 +566,14 @@
       },
       "attributes": {
         "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
-        "lastVerdict": "ESCALATE",
+        "lastVerdict": "FAIL",
         "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-standards-5.md",
         "resumeTieBreaker": "fail",
         "resumeTieBreakerAt": "2026-07-15T00:00:00Z",
         "resumeTieBreakerSummary": "Task worktree has viable uncommitted TypeScript migration but required check fails because self-check imports removed .js module; recover implementation.",
         "lastWorkerCommitSha": "8a52412",
         "staleRecovery": "t5-typescript-rename-recovered",
-        "failureReason": "fixAttempt exceeded bound after TypeScript ESM standards finding",
+        "failureReason": "frontier standards review failed; fixAttempt exceeded hard bound",
         "mergeState": "merged",
         "mergeStartedAt": "2026-07-14T23:36:43Z",
         "mergeConflictAt": "2026-07-14T23:41:57Z",
