@@ -89,6 +89,21 @@ const SAFETY_BUFFER_MS = 60_000;
 const MAX_TIMEOUT_MS = 2_147_483_000;
 
 type WakeStatus = "pending" | "fired" | "cancelled";
+type AdapterId = "generic" | "anthropic" | "openai-compatible";
+type AdapterArgs = Record<string, string>;
+
+interface MapperRule {
+  regex: RegExp;
+  adapter: AdapterId;
+  scope: string;
+  args: AdapterArgs;
+}
+
+interface LoadedConfig {
+  rules: MapperRule[];
+  warnings: string[];
+  created: boolean;
+}
 
 interface Component {
   readonly width?: number;
@@ -123,6 +138,8 @@ interface WakeEntry {
   delayMs: number; // total delay from detection to wakeAt (including buffer, if any)
   sourceExcerpt: string; // trimmed excerpt of the error text that triggered this
   source: RateLimitSource;
+  adapter?: AdapterId;
+  adapterArgs?: AdapterArgs;
   modelRef?: string; // e.g. "omniroute/cx/gpt-5.4", model detected on (if any)
   sessionId?: string;
   sessionFile?: string;
@@ -247,6 +264,11 @@ const RATE_LIMIT_HEADER_NAMES = [
 ];
 
 const NUMERIC_RE = /^\d+(?:\.\d+)?$/;
+
+const ADAPTER_IDS = new Set<AdapterId>(["generic", "anthropic", "openai-compatible"]);
+const ANTHROPIC_ARG_NAMES = new Set(["credentialFile", "configDir", "baseUrl"]);
+const PATH_ARG_NAMES = new Set(["credentialFile", "configDir"]);
+const MINIMAL_CONFIG = '{\n  "mappers": []\n}\n';
 
 function getHeaderCaseInsensitive(headers: Record<string, string>, name: string): string | undefined {
   const lower = name.toLowerCase();
@@ -379,6 +401,108 @@ function parseProviderRateLimit(headers: Record<string, string> | undefined | nu
   };
 }
 
+// --- config / mapper ---------------------------------------------------------
+
+function expandPathValue(value: string): string {
+  if (value === "$HOME") return os.homedir();
+  if (value.startsWith("$HOME/")) return path.join(os.homedir(), value.slice(6));
+  if (value === "~") return os.homedir();
+  if (value.startsWith("~/")) return path.join(os.homedir(), value.slice(2));
+  return value;
+}
+
+function validateAdapterArgs(adapter: AdapterId, rawArgs: unknown, ruleLabel: string): { args: AdapterArgs; warning?: string } {
+  if (rawArgs === undefined) return { args: {} };
+  if (!rawArgs || typeof rawArgs !== "object" || Array.isArray(rawArgs)) {
+    return { args: {}, warning: `${ruleLabel}: args must be an object` };
+  }
+
+  const args: AdapterArgs = {};
+  for (const [key, value] of Object.entries(rawArgs as Record<string, unknown>)) {
+    if (adapter !== "anthropic" || !ANTHROPIC_ARG_NAMES.has(key)) {
+      return { args: {}, warning: `${ruleLabel}: unknown args.${key} for adapter ${adapter}` };
+    }
+    if (typeof value !== "string" || value.length === 0) {
+      return { args: {}, warning: `${ruleLabel}: args.${key} must be a non-empty string` };
+    }
+    args[key] = PATH_ARG_NAMES.has(key) ? expandPathValue(value) : value;
+  }
+  return { args };
+}
+
+function createConfigIfMissing(): boolean {
+  if (fs.existsSync(getConfigPath())) return false;
+  fs.mkdirSync(getSheepdogDir(), { recursive: true });
+  fs.writeFileSync(getConfigPath(), MINIMAL_CONFIG, "utf8");
+  return true;
+}
+
+function loadConfig(createMissing = false): LoadedConfig {
+  const warnings: string[] = [];
+  let created = false;
+  try {
+    if (!fs.existsSync(getConfigPath())) {
+      if (createMissing) created = createConfigIfMissing();
+      return { rules: [], warnings, created };
+    }
+
+    const parsed = JSON.parse(fs.readFileSync(getConfigPath(), "utf8")) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { rules: [], warnings: ["config root must be an object"], created };
+    }
+    const mappers = (parsed as Record<string, unknown>).mappers;
+    if (!Array.isArray(mappers)) {
+      return { rules: [], warnings: ["config.mappers must be an array"], created };
+    }
+
+    const rules: MapperRule[] = [];
+    mappers.forEach((raw, index) => {
+      const label = `mappers[${index}]`;
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        warnings.push(`${label}: rule must be an object`);
+        return;
+      }
+      const rule = raw as Record<string, unknown>;
+      if (typeof rule.match !== "string" || typeof rule.scope !== "string" || typeof rule.adapter !== "string") {
+        warnings.push(`${label}: match, adapter, and scope must be strings`);
+        return;
+      }
+      if (!ADAPTER_IDS.has(rule.adapter as AdapterId)) {
+        warnings.push(`${label}: unknown adapter ${rule.adapter}`);
+        return;
+      }
+      let regex: RegExp;
+      try {
+        regex = new RegExp(rule.match);
+      } catch (error) {
+        warnings.push(`${label}: invalid regex ${rule.match} (${error instanceof Error ? error.message : "error"})`);
+        return;
+      }
+      const adapter = rule.adapter as AdapterId;
+      const { args, warning } = validateAdapterArgs(adapter, rule.args, label);
+      if (warning) {
+        warnings.push(warning);
+        return;
+      }
+      rules.push({ regex, adapter, scope: rule.scope, args });
+    });
+    return { rules, warnings, created };
+  } catch (error) {
+    return { rules: [], warnings: [`config unreadable: ${error instanceof Error ? error.message : "error"}`], created };
+  }
+}
+
+function resolveMapper(modelRef: string | undefined, config = loadConfig()): { adapter: AdapterId; scopeGlob: string; args: AdapterArgs } {
+  if (modelRef) {
+    for (const rule of config.rules) {
+      if (rule.regex.test(modelRef)) {
+        return { adapter: rule.adapter, scopeGlob: rule.scope, args: rule.args };
+      }
+    }
+  }
+  return { adapter: "generic", scopeGlob: computeScopeGlob(modelRef) ?? CATCHALL_SCOPE, args: {} };
+}
+
 // --- dynamic rate-limit scope ------------------------------------------------
 
 // Builds a "provider/id" model reference from the session's current model.
@@ -468,6 +592,7 @@ function migrateLegacyEntry(legacy: Record<string, unknown>, scopeKey: string): 
     delayMs: typeof legacy.delayMs === "number" ? legacy.delayMs : 0,
     sourceExcerpt: excerpt,
     source,
+    adapter: "generic",
     modelRef: typeof legacy.modelRef === "string" ? legacy.modelRef : undefined,
     sessionId: typeof legacy.sessionId === "string" ? legacy.sessionId : undefined,
     sessionFile: typeof legacy.sessionFile === "string" ? legacy.sessionFile : undefined,
@@ -880,7 +1005,8 @@ export default function (pi: ExtensionAPI) {
     const now = new Date();
     const newWakeAt = new Date(now.getTime() + parsed.delayMs).toISOString();
     const modelRef = computeModelRef(ctx);
-    const scopeKey = computeScopeGlob(modelRef) ?? CATCHALL_SCOPE;
+    const mapper = resolveMapper(modelRef);
+    const scopeKey = mapper.scopeGlob;
 
     const state = loadState() ?? { version: STATE_VERSION, entries: {} };
     const existing = state.entries[scopeKey];
@@ -900,6 +1026,8 @@ export default function (pi: ExtensionAPI) {
         delayMs: parsed.delayMs,
         sourceExcerpt: parsed.excerpt,
         source,
+        adapter: mapper.adapter,
+        adapterArgs: mapper.args,
         modelRef,
         sessionId: safeSessionId(ctx),
         sessionFile: safeSessionFile(ctx),
@@ -1048,9 +1176,21 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("sheepdog config", {
-    description: "Show the sheepdog config path",
+    description: "Create and validate the sheepdog config",
     handler: async (_args, ctx) => {
-      ctx.ui.notify(`Sheepdog config path: ${getConfigPath()}`, "info");
+      const config = loadConfig(true);
+      const lines = [
+        `${config.created ? "Created" : "Sheepdog config"}: ${getConfigPath()}`,
+        `Valid mapper rules: ${config.rules.length}`,
+      ];
+      if (config.warnings.length > 0) {
+        lines.push("Warnings:", ...config.warnings.map((warning) => `- ${warning}`));
+      }
+      lines.push(
+        "Example mapper:",
+        '{ "match": "^openrouter/anthropic/(.+)$", "adapter": "anthropic", "scope": "openrouter/anthropic/*", "args": { "credentialFile": "$HOME/.claude/.credentials.json", "configDir": "$HOME/.claude", "baseUrl": "https://api.anthropic.com" } }',
+      );
+      ctx.ui.notify(lines.join("\n"), config.warnings.length > 0 ? "warn" : "info");
     },
   });
 }
