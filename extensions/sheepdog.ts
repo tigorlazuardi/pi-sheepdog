@@ -41,9 +41,10 @@
 // drop unrelated scopes.
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
+import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { loadStateFile, mergeDetectedWakeEntry, updateStateFile } from "./sheepdog-state.js";
+import { loadStateFile, mergeDetectedWakeEntry, updateStateFile } from "./sheepdog-state.ts";
 
 const STATUS_KEY = "sheepdog";
 const LEGACY_STATUS_KEY = "rate-limit-wakeup";
@@ -250,6 +251,149 @@ function parseRateLimitError(errorMessage: string): ParsedRateLimit | null {
 // we deliberately never dump the full header set, to avoid leaking cookies,
 // auth, or other sensitive response headers into on-disk state.
 const RATE_LIMIT_HEADER_NAMES = [
+  "retry-after-ms",
+  "x-retry-after-ms",
+  "retry-after",
+  "x-ratelimit-reset-after",
+  "x-rate-limit-reset-after",
+  "reset-after",
+  "x-ratelimit-reset",
+  "x-rate-limit-reset",
+];
+
+const NUMERIC_RE = /^\d+(?:\.\d+)?$/;
+
+function getHeaderCaseInsensitive(headers: Record<string, string>, name: string): string | undefined {
+  const lower = name.toLowerCase();
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === lower) {
+      const value = headers[key];
+      if (typeof value === "string" && value.length > 0) {
+        return value;
+      }
+    }
+  }
+  return undefined;
+}
+
+// Parses a duration out of freeform header text, reusing the same d/h/m/s
+// scanning logic as the agent_end message parser. Tries the "reset after"
+// style keyword window first (in case a provider echoes message-like text
+// into a header), then falls back to scanning the raw value directly since
+// header values are short and rarely contain unrelated numbers.
+function parseFreeformDurationMs(text: string): number | null {
+  const keywordMatch = text.match(DURATION_KEYWORD);
+  if (keywordMatch && keywordMatch.index !== undefined) {
+    const windowStart = keywordMatch.index + keywordMatch[0].length;
+    const window = text.slice(windowStart, windowStart + DURATION_WINDOW);
+    const fromKeyword = parseDurationMs(window);
+    if (fromKeyword !== null) {
+      return fromKeyword;
+    }
+  }
+  return parseDurationMs(text.slice(0, DURATION_WINDOW));
+}
+
+// Parses a single rate-limit header's value into a millisecond delay from
+// now. Interpretation depends on both the header name (which unit/format a
+// header conventionally uses) and the value's shape (numeric vs date vs
+// freeform text), since providers are inconsistent here.
+function parseHeaderDelayMs(headerName: string, rawValue: string): number | null {
+  const value = rawValue.trim();
+  if (!value) {
+    return null;
+  }
+  const lowerName = headerName.toLowerCase();
+
+  if (NUMERIC_RE.test(value)) {
+    const n = Number.parseFloat(value);
+    if (!Number.isFinite(n) || n < 0) {
+      return null;
+    }
+
+    if (lowerName.includes("-ms")) {
+      // retry-after-ms / x-retry-after-ms: already a millisecond delta.
+      return n;
+    }
+    if (lowerName === "retry-after") {
+      // RFC 7231: retry-after numeric value is a seconds delta.
+      return n * 1_000;
+    }
+    if (lowerName.includes("reset-after")) {
+      // x-ratelimit-reset-after / x-rate-limit-reset-after / reset-after:
+      // seconds delta by convention (GitHub, Discord, etc).
+      return n * 1_000;
+    }
+    if (lowerName.includes("reset")) {
+      // x-ratelimit-reset / x-rate-limit-reset: absolute reset timestamp,
+      // as unix seconds or unix milliseconds depending on magnitude. A
+      // small value (below the unix-seconds range) is ambiguous but most
+      // commonly means "seconds until reset", so treat it as a delta.
+      const nowMs = Date.now();
+      if (n >= 1e12) {
+        return n - nowMs;
+      }
+      if (n >= 1e9) {
+        return n * 1_000 - nowMs;
+      }
+      return n * 1_000;
+    }
+    // Unrecognized numeric convention: default to seconds delta.
+    return n * 1_000;
+  }
+
+  const parsedDate = Date.parse(value);
+  if (!Number.isNaN(parsedDate)) {
+    return parsedDate - Date.now();
+  }
+
+  return parseFreeformDurationMs(value);
+}
+
+/**
+ * Parses a wake delay directly out of a 429 provider response's headers.
+ * Checks known rate-limit headers in priority order and returns the first
+ * one that yields a usable positive delay. Returns null when no known
+ * rate-limit header is present or none parse to a usable delay.
+ */
+function parseProviderRateLimit(headers: Record<string, string> | undefined | null): ParsedRateLimit | null {
+  if (!headers || typeof headers !== "object") {
+    return null;
+  }
+
+  const present: Array<[string, string]> = [];
+  for (const name of RATE_LIMIT_HEADER_NAMES) {
+    const value = getHeaderCaseInsensitive(headers, name);
+    if (value !== undefined) {
+      present.push([name, value]);
+    }
+  }
+  if (present.length === 0) {
+    return null;
+  }
+
+  let delayMs: number | null = null;
+  for (const [name, value] of present) {
+    const parsed = parseHeaderDelayMs(name, value);
+    if (parsed !== null && Number.isFinite(parsed) && parsed > 0) {
+      delayMs = parsed;
+      break;
+    }
+  }
+  if (delayMs === null) {
+    return null;
+  }
+
+  // Only known rate-limit headers are ever included here, never the full
+  // header set (see RATE_LIMIT_HEADER_NAMES comment above).
+  const excerpt = `provider response 429; ${present.map(([name, value]) => `${name}=${value}`).join("; ")}`;
+
+  return {
+    delayMs: delayMs + SAFETY_BUFFER_MS,
+    excerpt: excerpt.slice(0, 400),
+  };
+}
+
   "retry-after-ms",
   "x-retry-after-ms",
   "retry-after",
@@ -499,6 +643,18 @@ function resolveMapper(modelRef: string | undefined, config = loadConfig()): { a
   }
   return { adapter: "generic", scopeGlob: computeScopeGlob(modelRef) ?? CATCHALL_SCOPE, args: {} };
 }
+
+// --- dynamic rate-limit scope ------------------------------------------------
+
+// Builds a "provider/id" model reference from the session's current model.
+// Deliberately reads ctx.model live at detection time rather than caching it
+// anywhere — there is no hardcoded model or provider name in this file.
+// Returns undefined when no model is selected, or when either half is empty
+// (should not normally happen, but we never want to fabricate a ref).
+function computeModelRef(ctx: ExtensionContext): string | undefined {
+  try {
+    const model = ctx.model;
+    if (!model || typeof model.provider !== "string" || typeof model.id !== "string") {
 
 // --- dynamic rate-limit scope ------------------------------------------------
 
@@ -1067,21 +1223,9 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("sheepdog config", {
-    description: "Create and validate the sheepdog config",
+    description: "Show the sheepdog config path",
     handler: async (_args, ctx) => {
-      const config = loadConfig(true);
-      const lines = [
-        `${config.created ? "Created" : "Sheepdog config"}: ${getConfigPath()}`,
-        `Valid mapper rules: ${config.rules.length}`,
-      ];
-      if (config.warnings.length > 0) {
-        lines.push("Warnings:", ...config.warnings.map((warning) => `- ${warning}`));
-      }
-      lines.push(
-        "Example mapper:",
-        '{ "match": "^openrouter/anthropic/(.+)$", "adapter": "anthropic", "scope": "openrouter/anthropic/*", "args": { "credentialFile": "$HOME/.claude/.credentials.json", "configDir": "$HOME/.claude", "baseUrl": "https://api.anthropic.com" } }',
-      );
-      ctx.ui.notify(lines.join("\n"), config.warnings.length > 0 ? "warn" : "info");
+      ctx.ui.notify(`Sheepdog config path: ${getConfigPath()}`, "info");
     },
   });
 }

@@ -26,15 +26,19 @@ export function normalizeWakeEntry(raw, scopeKey, options = {}) {
       : typeof entry.sourceExcerpt === "string"
         ? entry.sourceExcerpt
         : "";
+  const origin = entry.origin === "manual" ? "manual" : "auto";
   return {
     scopeGlob: typeof entry.scopeGlob === "string" && entry.scopeGlob.length > 0 ? entry.scopeGlob : scopeKey,
     status: normalizeWakeStatus(entry.status),
-    origin: entry.origin === "manual" ? "manual" : "auto",
+    origin,
     wakeAt,
     delayMs: typeof entry.delayMs === "number" ? entry.delayMs : 0,
     redactedExcerpt,
     source: entry.source === "provider-429" ? "provider-429" : "agent_end",
-    originalSource: entry.originalSource === "provider-429" || entry.originalSource === "agent_end" ? entry.originalSource : undefined,
+    originalSource:
+      origin === "manual" && (entry.originalSource === "provider-429" || entry.originalSource === "agent_end")
+        ? entry.originalSource
+        : undefined,
     adapter: typeof entry.adapter === "string" ? entry.adapter : undefined,
     humanNotifiedAt: typeof entry.humanNotifiedAt === "string" ? entry.humanNotifiedAt : undefined,
     modelRef: typeof entry.modelRef === "string" ? entry.modelRef : undefined,
@@ -178,7 +182,7 @@ export function mergeDetectedWakeEntry(existing, next) {
     delayMs: next.delayMs,
     redactedExcerpt: next.redactedExcerpt,
     source: next.source,
-    adapter: existing?.adapter,
+    adapter: next.adapter ?? existing?.adapter,
     humanNotifiedAt: existing?.humanNotifiedAt,
     modelRef: next.modelRef,
     sessionId: next.sessionId,
