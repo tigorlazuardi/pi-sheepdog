@@ -16,7 +16,7 @@
       "id": "t1",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-1",
-        "title": "Ticket 1 — Rebrand paths, commands, and status identity"
+        "title": "Ticket 1 \u2014 Rebrand paths, commands, and status identity"
       },
       "dependsOn": [],
       "routing": {
@@ -195,7 +195,7 @@
       "id": "t2",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-2",
-        "title": "Ticket 2 — Local human time formatter"
+        "title": "Ticket 2 \u2014 Local human time formatter"
       },
       "dependsOn": [
         "t1"
@@ -341,7 +341,7 @@
       "id": "t3",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-3",
-        "title": "Ticket 3 — Adapter and mapper config"
+        "title": "Ticket 3 \u2014 Adapter and mapper config"
       },
       "dependsOn": [
         "t1",
@@ -539,7 +539,7 @@
       "id": "t5",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-5",
-        "title": "Ticket 5 — State v3, lock, and atomic writes"
+        "title": "Ticket 5 \u2014 State v3, lock, and atomic writes"
       },
       "dependsOn": [
         "t1",
@@ -552,13 +552,13 @@
         "checkCommand": "npm run self-check -- state && npm run check"
       },
       "runtime": {
-        "status": "running",
+        "status": "failed",
         "fixAttempt": 4,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
         "acceptanceResult": "pass",
-        "agentId": "t5-frontier-spec-20260715-0002"
+        "agentId": null
       },
       "sync": {
         "mirrored": true,
@@ -566,18 +566,18 @@
       },
       "attributes": {
         "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
-        "lastVerdict": "PASS",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-implementer-10.md",
+        "lastVerdict": "ESCALATE",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-standards-recovery-8bc5a3e.md",
         "resumeTieBreaker": "fail",
         "resumeTieBreakerAt": "2026-07-15T00:00:00Z",
         "resumeTieBreakerSummary": "Task worktree has viable uncommitted TypeScript migration but required check fails because self-check imports removed .js module; recover implementation.",
         "lastWorkerCommitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
         "staleRecovery": "t5-typescript-rename-recovered",
-        "failureReason": "frontier standards review failed after fixAttempt bound",
+        "failureReason": "Fresh frontier standards review blocked acceptance: config warnings expose unsanitized user-controlled values (secret-disclosure risk); mapper args violate adapter-specific typing standard.",
         "mergeState": "merged",
         "mergeStartedAt": "2026-07-14T23:36:43Z",
         "mergeConflictAt": "2026-07-14T23:41:57Z",
-        "blockedReason": null,
+        "blockedReason": "Fix two frontier findings, commit, then restart standards review.",
         "staleReviewerTieBreaker": "pass",
         "staleReviewerTieBreakerAt": "2026-07-14T23:37:54Z",
         "staleReviewerTieBreakerSummary": "Task commit present and routing.checkCommand passed; resume integration-conflict resolution.",
@@ -591,7 +591,7 @@
         "stalePreFixVerdictAt": "2026-07-14T23:52:29Z",
         "remediationCommit": "8bc5a3e00727b5bc972def89ce86522faad82b82",
         "remediationAcceptance": "pass",
-        "staleReviewerRecovery": "fresh-frontier-standards-running"
+        "staleReviewerRecovery": "fresh-frontier-standards-escalated"
       },
       "audit": [
         {
@@ -1269,17 +1269,20 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t5-frontier-standards-fresh-20260715",
           "startedAt": "2026-07-15T00:05:00Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T00:07:34Z",
           "status": "ok",
           "error": null,
-          "summary": null,
+          "summary": "Config warnings expose unsanitized user-controlled values, creating secret-disclosure risk. Mapper args also violate adapter-specific typing standard.",
           "attributes": {
             "axis": "standards",
             "class": "frontier",
             "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
-            "recovery": "direct-fresh-review"
+            "recovery": "direct-fresh-review",
+            "verdict": "ESCALATE",
+            "concreteFindingsCount": "2",
+            "tokens": "369497"
           },
-          "reportRef": null
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-standards-recovery-8bc5a3e.md"
         },
         {
           "role": "reviewer",
@@ -1304,7 +1307,7 @@
       "id": "t4",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-4",
-        "title": "Ticket 4 — Cooldown interceptor pipeline"
+        "title": "Ticket 4 \u2014 Cooldown interceptor pipeline"
       },
       "dependsOn": [
         "t3",
@@ -1420,7 +1423,7 @@
       "id": "t9",
       "ticket": {
         "ref": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-9",
-        "title": "Ticket 9 — Debug log and redaction"
+        "title": "Ticket 9 \u2014 Debug log and redaction"
       },
       "dependsOn": [
         "t3",
