@@ -558,7 +558,7 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
         "acceptanceResult": "pass",
-        "agentId": "t5-frontier-standards-recovery-20260715-0001"
+        "agentId": "t5-frontier-standards-durable-20260715"
       },
       "sync": {
         "mirrored": true,
@@ -1239,6 +1239,25 @@
             "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
             "attempt": "7",
             "recovery": "stale-reviewer"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-standards-1.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t5-frontier-standards-durable-20260715",
+          "startedAt": "2026-07-14T23:54:36Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Fresh durable frontier standards review spawned for remediation commit.",
+          "attributes": {
+            "axis": "standards",
+            "class": "frontier",
+            "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
+            "recovery": "stale-reviewer",
+            "attempt": "8"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-standards-1.md"
         }
