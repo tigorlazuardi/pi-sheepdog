@@ -376,7 +376,9 @@
         "lastWorkerCommitSha": "863c5f331abc14a6678ae4e5fb4c1cc2746ab8db",
         "escalationReason": "frontier review confirmed secret/credential surface; spec fit and checks passed",
         "escalationAt": "2026-07-14T16:23:10Z",
-        "frontierReviewDisposition": "accepted-after-frontier-escalation"
+        "frontierReviewDisposition": "accepted-after-frontier-escalation",
+        "mergeState": "starting",
+        "mergeStartedAt": "2026-07-14T23:30:56Z"
       },
       "audit": [
         {
