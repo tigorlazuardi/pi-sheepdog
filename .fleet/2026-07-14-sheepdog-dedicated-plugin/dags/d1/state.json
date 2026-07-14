@@ -567,17 +567,17 @@
       "attributes": {
         "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
         "lastVerdict": "FAIL",
-        "lastReportRef": "extensions/sheepdog-state.ts:127",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-standards-2.md",
         "resumeTieBreaker": "fail",
         "resumeTieBreakerAt": "2026-07-15T00:00:00Z",
         "resumeTieBreakerSummary": "Task worktree has viable uncommitted TypeScript migration but required check fails because self-check imports removed .js module; recover implementation.",
         "lastWorkerCommitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
         "staleRecovery": "t5-typescript-rename-recovered",
-        "failureReason": "Fresh frontier spec review found stale locks are never detected or removed; retry bound exceeded.",
+        "failureReason": "HIGH: raw provider errors and legacy excerpts persist without secret redaction; orphan lock files permanently disable state writes; v2 manual wakes normalize as automatic and lose sticky override semantics.",
         "mergeState": "merged",
         "mergeStartedAt": "2026-07-14T23:36:43Z",
         "mergeConflictAt": "2026-07-14T23:41:57Z",
-        "blockedReason": "Fix two frontier findings, commit, then restart standards review.",
+        "blockedReason": "frontier standards review failed",
         "staleReviewerTieBreaker": "pass",
         "staleReviewerTieBreakerAt": "2026-07-14T23:37:54Z",
         "staleReviewerTieBreakerSummary": "Task commit present and routing.checkCommand passed; resume integration-conflict resolution.",
@@ -1297,15 +1297,15 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t5-frontier-spec-20260715-0002",
           "startedAt": "2026-07-14T23:55:39Z",
-          "endedAt": "2026-07-14T23:59:32Z",
+          "endedAt": "2026-07-14T23:59:47Z",
           "status": "ok",
           "error": null,
-          "summary": "Check passes, but `extensions/sheepdog-state.ts:127-147` never detects or removes stale locks. Crashed writer leaves permanent lock → all later state writes fail after timeout; implement stale-lock cleanup before retry as required by Ticket 5 spec.",
+          "summary": "HIGH: raw provider errors and legacy excerpts persist without secret redaction; orphan lock files permanently disable state writes; v2 manual wakes normalize as automatic and lose sticky override semantics.",
           "attributes": {
             "axis": "standards",
             "class": "frontier",
             "commitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
-            "tokens": "7820",
+            "tokens": "18400",
             "verdict": "FAIL",
             "findings": {
               "critical": 0,
@@ -1315,7 +1315,7 @@
             },
             "acceptanceResult": "pass"
           },
-          "reportRef": "extensions/sheepdog-state.ts:127"
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-standards-2.md"
         }
       ]
     },
@@ -1506,8 +1506,8 @@
     }
   ],
   "stopFlag": {
-    "stopped": false,
-    "reason": null,
-    "stoppedAt": null
+    "stopped": true,
+    "reason": "t5 BLOCKED: frontier standards review failed",
+    "stoppedAt": "2026-07-14T23:59:47Z"
   }
 }
