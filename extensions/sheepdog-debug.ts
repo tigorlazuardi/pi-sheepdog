@@ -7,7 +7,7 @@ const SENSITIVE_FIELDS = new Set([
   "cookie", "setcookie", "apikey", "xapikey", "passwd", "credentialfile", "configdir", "credentialcontents",
 ]);
 const SENSITIVE_FIELD_PARTS = [
-  "authorization", "apikey", "accesstoken", "refreshtoken", "clientsecret", "secretkey", "signingkey",
+  "authorization", "auth", "bearer", "apikey", "accesstoken", "refreshtoken", "clientsecret", "secretkey", "signingkey",
 ];
 const SENSITIVE_FIELD_SUFFIXES = ["token", "password", "secret", "privatekey", "privatekeypem", "credential", "credentials"];
 const MAX_DEBUG_STRING = 400;

@@ -114,8 +114,9 @@ function checkRedaction() {
   const urlPathToken = "opaque-path-token";
   const urlQueryToken = "opaque-query-token";
   const aliasSecrets = ["openai-key-secret", "access-token-secret", "client-secret-value", "auth-variant-secret", "signing-key-secret"];
+  const headerAliasSecrets = ["auth-header-secret", "auth-snake-header-secret", "bearer-header-secret", "mixed-auth-header-secret", "upper-bearer-header-secret"];
   const payload = `Authorization: Bearer auth-secret Cookie: sid=cookie-secret api_key=key-secret token=token-secret password=password-secret secret=generic-secret jwt=${jwt} ${privateKey} ${standaloneSecrets.join(" ")} ${"provider-payload-".repeat(80)}`;
-  const forbidden = ["auth-secret", "cookie-secret", "key-secret", "token-secret", "password-secret", "generic-secret", jwt, "credential-contents", "/home/alice/.credentials.json", "/home/alice/.config", "adapter-token", urlPassword, urlToken, urlPathToken, urlQueryToken, ...aliasSecrets, ...standaloneSecrets];
+  const forbidden = ["auth-secret", "cookie-secret", "key-secret", "token-secret", "password-secret", "generic-secret", jwt, "credential-contents", "/home/alice/.credentials.json", "/home/alice/.config", "adapter-token", urlPassword, urlToken, urlPathToken, urlQueryToken, ...aliasSecrets, ...headerAliasSecrets, ...standaloneSecrets];
 
   try {
     fs.writeFileSync(debugPath, "", { mode: 0o644 });
@@ -138,6 +139,11 @@ function checkRedaction() {
           client_secret: aliasSecrets[2],
           proxyAuthorizationHeader: aliasSecrets[3],
           signingKey: aliasSecrets[4],
+          authHeader: headerAliasSecrets[0],
+          auth_header: headerAliasSecrets[1],
+          bearerHeader: headerAliasSecrets[2],
+          AuTh_HeAdEr: headerAliasSecrets[3],
+          BEARER_HEADER: headerAliasSecrets[4],
         } }],
       },
       passwordUrl: `https://proxy-user:${urlPassword}@password.example.test`,
@@ -177,6 +183,11 @@ function checkRedaction() {
     assert.equal(event.args.nested[0].headers.client_secret, "[REDACTED]");
     assert.equal(event.args.nested[0].headers.proxyAuthorizationHeader, "[REDACTED]");
     assert.equal(event.args.nested[0].headers.signingKey, "[REDACTED]");
+    assert.equal(event.args.nested[0].headers.authHeader, "[REDACTED]");
+    assert.equal(event.args.nested[0].headers.auth_header, "[REDACTED]");
+    assert.equal(event.args.nested[0].headers.bearerHeader, "[REDACTED]");
+    assert.equal(event.args.nested[0].headers.AuTh_HeAdEr, "[REDACTED]");
+    assert.equal(event.args.nested[0].headers.BEARER_HEADER, "[REDACTED]");
     assert.ok(event.excerpt.length <= 400);
     assert.deepEqual({ event: wakeSkipped.event, scope: wakeSkipped.scope, reason: wakeSkipped.reason }, {
       event: "wake_skipped",
