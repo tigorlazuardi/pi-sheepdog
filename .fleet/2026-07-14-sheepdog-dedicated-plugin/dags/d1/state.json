@@ -552,12 +552,12 @@
         "checkCommand": "npm run self-check -- state && npm run check"
       },
       "runtime": {
-        "status": "failed",
+        "status": "passed",
         "fixAttempt": 6,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
-        "commitSha": "af9254e9987f041100fef3c45d80a2549c849b6d",
-        "acceptanceResult": "fail",
+        "commitSha": "e9a3ef9ddf74a29ea933d8843ae6eddc1d7ecaeb",
+        "acceptanceResult": "pass",
         "agentId": null
       },
       "sync": {
@@ -566,8 +566,8 @@
       },
       "attributes": {
         "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
-        "lastVerdict": "FAIL",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-spec-af9254e-a84610f4.md",
+        "lastVerdict": "ESCALATE",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-spec-e9a3ef9.md",
         "resumeTieBreaker": "fail",
         "resumeTieBreakerAt": "2026-07-15T00:00:00Z",
         "resumeTieBreakerSummary": "Task worktree has viable uncommitted TypeScript migration but required check fails because self-check imports removed .js module; recover implementation.",
@@ -581,15 +581,15 @@
         "staleReviewerTieBreaker": "pass",
         "staleReviewerTieBreakerAt": "2026-07-14T23:37:54Z",
         "staleReviewerTieBreakerSummary": "Task commit present and routing.checkCommand passed; resume integration-conflict resolution.",
-        "dagBranchSha": "1de36f7",
-        "dagBranchPushedAt": "2026-07-15T00:12:00Z",
+        "dagBranchSha": "3f47069b1d4788438d19693e23133cde5ec7de5b",
+        "dagBranchPushedAt": "2026-07-15T00:54:51Z",
         "dagBranchDurability": "recorded",
         "staleResolverRecovery": "actual integration merge commit 4ee7171 present; stale resolver superseded",
-        "escalationReason": "frontier spec review: v2 manual wake sticky protection and persisted-secret redaction surface",
-        "escalationAt": "2026-07-15T00:16:00Z",
+        "escalationReason": "frontier spec review: secret-bearing state persistence",
+        "escalationAt": "2026-07-15T00:54:25Z",
         "stalePreFixVerdict": "3ceea0b9 FAIL superseded pending fresh frontier review",
         "stalePreFixVerdictAt": "2026-07-14T23:52:29Z",
-        "remediationCommit": "8bc5a3e00727b5bc972def89ce86522faad82b82",
+        "remediationCommit": "2da2141306bed3603608fc5538a93476c2851811",
         "remediationAcceptance": "pass",
         "staleReviewerRecovery": "fresh-frontier-standards-escalated",
         "freshFrontierVerdictAt": "2026-07-14T23:58:29Z",
@@ -599,10 +599,12 @@
           "medium": 1,
           "low": 0
         },
-        "externalFinalRemediationCommit": "af9254e9987f041100fef3c45d80a2549c849b6d",
-        "externalVerification": "npm ci, production state self-check, typecheck, docs build, and pack dry-run passed; multi-cookie/quoted-secret persistence and silent lock timeout reviewed PASS",
+        "externalFinalRemediationCommit": "e9a3ef9ddf74a29ea933d8843ae6eddc1d7ecaeb",
+        "externalVerification": "Direct runtime probes passed for authentication-bearer and escaped nested JSON secret leaks through v3 write and v1 migration; clean npm ci, state self-check, and full check passed.",
         "externalFrontierStandards": "PASS",
-        "specReviewCommit": "af9254e9987f041100fef3c45d80a2549c849b6d"
+        "specReviewCommit": "e9a3ef9ddf74a29ea933d8843ae6eddc1d7ecaeb",
+        "frontierReviewDisposition": "accepted-after-frontier-escalation",
+        "frontierSpecDisposition": "accepted-after-frontier-escalation"
       },
       "audit": [
         {
@@ -1428,18 +1430,117 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "pending-t5-final-spec-fix",
           "startedAt": "2026-07-15T00:16:00Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T00:20:00Z",
           "status": "ok",
           "error": null,
-          "summary": "Frontier worker spawned to fix final t5 frontier spec findings.",
+          "summary": "Ticket 5 fix committed and pushed. v2 source=\"manual\" wakes retain sticky manual protection. Regression added. Clean install and all required checks passed.",
           "attributes": {
             "class": "frontier",
             "resume": "review-fix",
             "fixAttempt": "6",
             "reviewAxis": "spec",
-            "escalated": "true"
+            "escalated": "true",
+            "commitSha": "2da2141306bed3603608fc5538a93476c2851811",
+            "acceptanceResult": "pass",
+            "tokens": "unavailable",
+            "verdict": "PASS"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-spec-final.md"
+        },
+        {
+          "role": "orchestrator",
+          "agentType": "codex-fleet-orchestrator",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "orchestrator",
+          "startedAt": "2026-07-15T00:20:00Z",
+          "endedAt": "2026-07-15T00:20:00Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Merged final t5 sticky-manual remediation into DAG branch and pushed integration ref.",
+          "attributes": {
+            "action": "merge",
+            "result": "merged",
+            "dagBranchSha": "a7b74b7"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "pending-t5-frontier-standards-final",
+          "startedAt": "2026-07-15T00:20:00Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Fresh frontier standards review spawned after final t5 remediation.",
+          "attributes": {
+            "axis": "standards",
+            "class": "frontier",
+            "commitSha": "2da2141306bed3603608fc5538a93476c2851811"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t5-frontier-spec-e9a3ef9",
+          "startedAt": "2026-07-15T00:49:05Z",
+          "endedAt": "2026-07-15T00:54:25Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Ticket 5 spec fit passes; required command exited 0. No concrete defect found, but secret-bearing state persistence mandates frontier escalation.",
+          "attributes": {
+            "axis": "spec",
+            "class": "frontier",
+            "commitSha": "e9a3ef9ddf74a29ea933d8843ae6eddc1d7ecaeb",
+            "checkCommand": "npm run self-check -- state && npm run check",
+            "evidence": "external-runtime-probes",
+            "verdict": "ESCALATE",
+            "acceptanceResult": "pass",
+            "tokens": "unavailable"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-spec-e9a3ef9.md"
+        },
+        {
+          "role": "orchestrator",
+          "agentType": "codex-fleet-orchestrator",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "orchestrator",
+          "startedAt": "2026-07-15T00:54:37Z",
+          "endedAt": "2026-07-15T00:54:37Z",
+          "status": "error",
+          "error": "fast-forward merge refused: diverging branches",
+          "summary": "Fast-forward merge refused because t5 and DAG branch diverged; normal clean merge queued.",
+          "attributes": {
+            "action": "merge",
+            "task": "t5",
+            "dag": "d1",
+            "sourceCommit": "e9a3ef9ddf74a29ea933d8843ae6eddc1d7ecaeb"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "orchestrator",
+          "agentType": "codex-fleet-orchestrator",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "orchestrator",
+          "startedAt": "2026-07-15T00:54:51Z",
+          "endedAt": "2026-07-15T00:54:51Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Merged latest t5 remediation into DAG branch and pushed integration ref after frontier spec gate passed.",
+          "attributes": {
+            "action": "merge",
+            "mode": "no-ff",
+            "task": "t5",
+            "dag": "d1",
+            "sourceCommit": "e9a3ef9ddf74a29ea933d8843ae6eddc1d7ecaeb",
+            "result": "merged",
+            "dagBranchSha": "3f47069b1d4788438d19693e23133cde5ec7de5b"
+          },
+          "reportRef": null
         }
       ]
     },
@@ -1460,13 +1561,13 @@
         "checkCommand": "npm run self-check -- detection && npm run check"
       },
       "runtime": {
-        "status": "blocked",
+        "status": "running",
         "fixAttempt": 1,
         "handoverAttempt": 0,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4",
-        "commitSha": "faeac92cbfbccd81f8e89f6a081f2552c21c5b50",
+        "commitSha": "429bc0f1c02720e689fb58f9d47249bf4a2e28ed",
         "acceptanceResult": "pass",
-        "agentId": null
+        "agentId": "spawn-t4-frontier-spec-5f35ccde-68e2-4af3-9237-3356389f6607"
       },
       "sync": {
         "mirrored": true,
@@ -1475,11 +1576,12 @@
       "attributes": {
         "reconciledAt": "2026-07-15T00:01:00Z",
         "reconciliation": "premature dispatch invalidated; no viable work beyond integration base",
-        "blockedBy": "t5",
-        "lastVerdict": "FAIL",
+        "blockedBy": null,
+        "lastVerdict": "PENDING_SPEC_REVIEW",
         "lastReportRef": "scripts/self-check.mjs:106",
-        "blockedReason": "t5 failed final frontier spec review; t4 depends on t5",
-        "effectiveTier": "frontier"
+        "blockedReason": null,
+        "effectiveTier": "frontier",
+        "reactivatedAt": "2026-07-15T00:54:51Z"
       },
       "audit": [
         {
@@ -1559,6 +1661,66 @@
             "recovery": "blocked-by-t5-failure"
           },
           "reportRef": null
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t4-frontier-fix-restart",
+          "startedAt": "2026-07-15T00:54:59Z",
+          "endedAt": "2026-07-15T00:59:08Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Ticket 4 implemented with ordered adapter/generic cooldown interceptors. Detection self-check now imports shared production detector logic; T5 integration preserved.",
+          "attributes": {
+            "attempt": "3",
+            "class": "frontier",
+            "resume": "review-fix",
+            "fixAttempt": "1",
+            "reviewAxis": "standards",
+            "commitSha": "429bc0f1c02720e689fb58f9d47249bf4a2e28ed",
+            "acceptanceResult": "pass",
+            "tokens": "16240",
+            "verdict": "PASS"
+          },
+          "reportRef": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t4-frontier-standards-429bc0f",
+          "startedAt": "2026-07-15T00:59:16Z",
+          "endedAt": "2026-07-15T01:00:09Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Prior duplication fixed. Self-check imports `detectErrorText`/`detectHeaders` from shared production detector; runtime uses same exports.",
+          "attributes": {
+            "axis": "standards",
+            "class": "frontier",
+            "commitSha": "429bc0f1c02720e689fb58f9d47249bf4a2e28ed",
+            "verdict": "PASS",
+            "tokens": "7840"
+          },
+          "reportRef": "extensions/sheepdog-detector.ts:274; scripts/self-check.mjs:6"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "spawn-t4-frontier-spec-5f35ccde-68e2-4af3-9237-3356389f6607",
+          "startedAt": "2026-07-15T01:02:05Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Frontier spec review spawned after frontier standards PASS.",
+          "attributes": {
+            "axis": "spec",
+            "class": "frontier",
+            "commitSha": "429bc0f1c02720e689fb58f9d47249bf4a2e28ed",
+            "checkCommand": "npm run self-check -- detection && npm run check"
+          },
+          "reportRef": "extensions/sheepdog-detector.ts:274; scripts/self-check.mjs:6"
         }
       ]
     },
