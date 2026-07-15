@@ -1565,9 +1565,9 @@
         "fixAttempt": 2,
         "handoverAttempt": 0,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4",
-        "commitSha": "ff62c78d0d7192afb52d0fa652d6bed296882e6d",
+        "commitSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t4-frontier-standards-f315cda9-9754-4d88-b49f-c9189af9e8dd"
+        "agentId": "spawn-t4-frontier-spec-retry-b76b0287-b3cb-4344-b99c-3730b1a2a96b"
       },
       "sync": {
         "mirrored": true,
@@ -1778,17 +1778,21 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t4-frontier-fix-b98c34c9-5ed9-42a5-ae13-254d5e068ee3",
           "startedAt": "2026-07-15T01:05:21Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T01:07:33Z",
           "status": "ok",
           "error": null,
-          "summary": "Frontier spec-fix implementer spawned.",
+          "summary": "RFC Retry-After dates now work for non-generic adapters. stop-generic reason surfaces via safe UI warning; required checks pass.",
           "attributes": {
             "class": "frontier",
             "resume": "review-fix",
             "fixAttempt": "2",
-            "reviewAxis": "spec"
+            "reviewAxis": "spec",
+            "commitSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d",
+            "acceptanceResult": "PASS",
+            "tokens": "3477",
+            "verdict": "PASS"
           },
-          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-frontier-spec-recovery-429bc0f.md"
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-frontier-spec-fix.md"
         },
         {
           "role": "reviewer",
@@ -1796,6 +1800,25 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "spawn-t4-frontier-standards-f315cda9-9754-4d88-b49f-c9189af9e8dd",
           "startedAt": "2026-07-15T01:07:26Z",
+          "endedAt": "2026-07-15T01:09:03Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Diff follows CODING_STANDARDS.md; no actionable standards or code-smell violations found.",
+          "attributes": {
+            "axis": "standards",
+            "class": "frontier",
+            "commitSha": "ff62c78d0d7192afb52d0fa652d6bed296882e6d",
+            "verdict": "PASS",
+            "checkCommand": "not-run"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-reviewer-standards-2.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t4-frontier-standards-0ca169b7-8ff3-4d1e-a815-ed19348aca4a",
+          "startedAt": "2026-07-15T01:07:33Z",
           "endedAt": null,
           "status": "ok",
           "error": null,
@@ -1803,7 +1826,25 @@
           "attributes": {
             "axis": "standards",
             "class": "frontier",
-            "commitSha": "ff62c78d0d7192afb52d0fa652d6bed296882e6d"
+            "commitSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "spawn-t4-frontier-spec-retry-b76b0287-b3cb-4344-b99c-3730b1a2a96b",
+          "startedAt": "2026-07-15T01:09:03Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Frontier spec review spawned after standards PASS.",
+          "attributes": {
+            "axis": "spec",
+            "class": "frontier",
+            "commitSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d",
+            "checkCommand": "npm run self-check -- detection && npm run check"
           },
           "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-implementer-2.md"
         }
