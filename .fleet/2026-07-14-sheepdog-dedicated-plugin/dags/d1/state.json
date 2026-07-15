@@ -1935,13 +1935,13 @@
         "checkCommand": "npm run self-check -- redaction && npm run check"
       },
       "runtime": {
-        "status": "pending",
+        "status": "running",
         "fixAttempt": 1,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t9",
-        "commitSha": "4d9a2c9a8ac09458a727ec07b4dd825bcd14081d",
+        "commitSha": "78ec8855d5463c75de037d5684bc0fb068c356fe",
         "acceptanceResult": "pass",
-        "agentId": null
+        "agentId": "t9-frontier-spec-direct-78ec885"
       },
       "sync": {
         "mirrored": true,
@@ -2221,6 +2221,42 @@
             "class": "frontier",
             "axis": "standards",
             "commitSha": "4d9a2c9a8ac09458a727ec07b4dd825bcd14081d"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "pending-t9-frontier-spec-78ec885",
+          "startedAt": "2026-07-15T01:44:06Z",
+          "endedAt": "2026-07-15T01:45:18Z",
+          "status": "error",
+          "error": "stale frontier spec reviewer superseded by direct recovery",
+          "summary": "Stale frontier spec review superseded; direct frontier spec verdict requested for latest commit.",
+          "attributes": {
+            "class": "frontier",
+            "axis": "spec",
+            "commitSha": "78ec8855d5463c75de037d5684bc0fb068c356fe",
+            "recovery": "direct-verdict"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-spec-direct-78ec885",
+          "startedAt": "2026-07-15T01:45:18Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Direct frontier spec review spawned for latest Ticket 9 commit.",
+          "attributes": {
+            "class": "frontier",
+            "axis": "spec",
+            "commitSha": "78ec8855d5463c75de037d5684bc0fb068c356fe",
+            "recovery": "stale-reviewer"
           },
           "reportRef": null
         }
