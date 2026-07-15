@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { appendDebugEvent } from "../extensions/sheepdog-debug.ts";
+import { appendDebugEvent, appendPanelCrudDebugEvent } from "../extensions/sheepdog-debug.ts";
 import { consumeDetectorResult, detectErrorText, detectHeaders } from "../extensions/sheepdog-detector.ts";
 import { loadMapperConfig, resolveMapper } from "../extensions/sheepdog-mapper.ts";
 import { loadStateFile, mergeDetectedWakeEntry, normalizeState, redactAndTruncateExcerpt, reportStateLockFailure, StateLockTimeoutError, updateStateFile, withFileLock } from "../extensions/sheepdog-state.ts";
@@ -133,8 +133,12 @@ function checkRedaction() {
       credentials: { username: "alice", password: "credential-password" },
       privateKeyPem: "pem-field-secret",
     }, new Date("2026-07-15T00:00:00.000Z"));
+    appendDebugEvent(debugPath, "wake_skipped", { scope: "anthropic/*", reason: "missing_or_terminal" });
+    for (const operation of ["create", "edit", "delete"]) {
+      appendPanelCrudDebugEvent(debugPath, operation, "anthropic/*");
+    }
     const raw = fs.readFileSync(debugPath, "utf8");
-    const event = JSON.parse(raw.trim());
+    const [event, wakeSkipped, ...panelEvents] = raw.trim().split("\n").map((line) => JSON.parse(line));
     for (const secret of [...forbidden, "nested-auth", "credential-file-secret", "nested-api-key", "nested-cookie", "nested-private-key", "github-field-secret", "alice", "credential-password", "pem-field-secret"]) assert.ok(!raw.includes(secret), `debug log leaked ${secret}`);
     assert.equal(event.event, "detection_matched");
     assert.equal(event.timestamp, "2026-07-15T00:00:00.000Z");
@@ -155,7 +159,17 @@ function checkRedaction() {
     assert.equal(event.privateKeyPem, "[REDACTED]");
     assert.equal(event.args.baseUrl, "https://[REDACTED]@api.example.test");
     assert.ok(event.excerpt.length <= 400);
-    assert.equal(raw.split("\n").filter(Boolean).length, 1);
+    assert.deepEqual({ event: wakeSkipped.event, scope: wakeSkipped.scope, reason: wakeSkipped.reason }, {
+      event: "wake_skipped",
+      scope: "anthropic/*",
+      reason: "missing_or_terminal",
+    });
+    assert.deepEqual(panelEvents.map(({ event, scope, status }) => ({ event, scope, status })), [
+      { event: "panel_create", scope: "anthropic/*", status: "succeeded" },
+      { event: "panel_edit", scope: "anthropic/*", status: "succeeded" },
+      { event: "panel_delete", scope: "anthropic/*", status: "succeeded" },
+    ]);
+    assert.equal(raw.split("\n").filter(Boolean).length, 5);
     assert.equal(fs.statSync(debugPath).mode & 0o777, 0o600);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

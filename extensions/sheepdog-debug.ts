@@ -24,6 +24,16 @@ function sanitize(value: unknown, key = "", seen = new WeakSet<object>()): unkno
   return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([field, item]) => [field, sanitize(item, field, seen)]));
 }
 
+export function appendPanelCrudDebugEvent(
+  debugPath: string,
+  operation: "create" | "edit" | "delete",
+  scope: string,
+  now = new Date(),
+): void {
+  // ponytail: fixed fields prevent panel forms, provider headers, or raw bodies from entering support logs.
+  appendDebugEvent(debugPath, `panel_${operation}`, { scope, status: "succeeded" }, now);
+}
+
 export function appendDebugEvent(debugPath: string, event: string, details: Record<string, unknown> = {}, now = new Date()): void {
   try {
     fs.mkdirSync(path.dirname(debugPath), { recursive: true });

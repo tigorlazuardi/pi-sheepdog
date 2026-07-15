@@ -498,6 +498,7 @@ export default function (pi: ExtensionAPI) {
         return { ...current };
       });
       if (!entry) {
+        debug("wake_skipped", { scope: scopeKey, reason: "missing_or_terminal" });
         maybeStopTicker();
         return;
       }
@@ -531,6 +532,8 @@ export default function (pi: ExtensionAPI) {
         const current = loadState()?.entries[scopeKey];
         if (current && current.status === "pending") {
           scheduleWake(current);
+        } else {
+          debug("wake_skipped", { scope: scopeKey, reason: "missing_or_terminal" });
         }
         return;
       }
