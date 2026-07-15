@@ -44,7 +44,7 @@ import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } f
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { detectErrorText, detectHeaders, type ParsedRateLimit } from "./sheepdog-detector.ts";
+import { consumeDetectorResult, detectErrorText, detectHeaders, type ParsedRateLimit } from "./sheepdog-detector.ts";
 import { loadMapperConfig, resolveMapper, type AdapterId, type LoadedMapperConfig } from "./sheepdog-mapper.ts";
 import { loadStateFile, mergeDetectedWakeEntry, redactAndTruncateExcerpt, reportStateLockFailure, updateStateFile } from "./sheepdog-state.ts";
 
@@ -620,12 +620,12 @@ export default function (pi: ExtensionAPI) {
       }
 
       const mapper = resolveDetectionMapper(ctx);
-      const result = detectHeaders(mapper.adapter, event.headers);
-      if (result.kind !== "matched") {
-        return;
-      }
+      const parsed = consumeDetectorResult(detectHeaders(mapper.adapter, event.headers), (reason) => {
+        ctx.ui.notify(`Sheepdog detection blocked generic fallback: ${reason}.`, "warning");
+      });
+      if (!parsed) return;
 
-      upsertDetectedState(ctx, result.parsed, "provider-429", mapper);
+      upsertDetectedState(ctx, parsed, "provider-429", mapper);
     } catch (error) {
       reportStateLockFailure(error, "provider-response");
       // fail open
@@ -646,12 +646,12 @@ export default function (pi: ExtensionAPI) {
 
       const errorMessage = String(assistant.errorMessage ?? "");
       const mapper = resolveDetectionMapper(ctx);
-      const result = detectErrorText(mapper.adapter, errorMessage);
-      if (result.kind !== "matched") {
-        return;
-      }
+      const parsed = consumeDetectorResult(detectErrorText(mapper.adapter, errorMessage), (reason) => {
+        ctx.ui.notify(`Sheepdog detection blocked generic fallback: ${reason}.`, "warning");
+      });
+      if (!parsed) return;
 
-      upsertDetectedState(ctx, result.parsed, "agent_end", mapper);
+      upsertDetectedState(ctx, parsed, "agent_end", mapper);
     } catch (error) {
       reportStateLockFailure(error, "agent-end");
       // fail open
