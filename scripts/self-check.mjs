@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { detectErrorText, detectHeaders } from "../extensions/sheepdog-detector.ts";
+import { consumeDetectorResult, detectErrorText, detectHeaders } from "../extensions/sheepdog-detector.ts";
 import { loadMapperConfig, resolveMapper } from "../extensions/sheepdog-mapper.ts";
 import { loadStateFile, mergeDetectedWakeEntry, normalizeState, redactAndTruncateExcerpt, reportStateLockFailure, StateLockTimeoutError, updateStateFile, withFileLock } from "../extensions/sheepdog-state.ts";
 
@@ -51,7 +51,13 @@ function checkDetection() {
   const header = detectHeaders("generic", { "Retry-After": "120" });
   assert.equal(header.kind, "matched");
   assert.equal(header.parsed.delayMs, 180_000);
-  assert.equal(detectHeaders("anthropic", { "Retry-After": "60, 120" }).kind, "stop-generic");
+  for (const adapter of ["anthropic", "openai-compatible"]) {
+    assert.equal(detectHeaders(adapter, { "Retry-After": "Wed, 21 Oct 2099 07:28:00 GMT" }).kind, "matched");
+  }
+  const blocked = detectHeaders("anthropic", { "Retry-After": "60, 120" });
+  const warnings = [];
+  assert.equal(consumeDetectorResult(blocked, (reason) => warnings.push(reason)), null);
+  assert.deepEqual(warnings, ["anthropic: ambiguous retry-after header"]);
 
   const text = detectErrorText("generic", "Rate limit: retry after 2m");
   assert.equal(text.kind, "matched");

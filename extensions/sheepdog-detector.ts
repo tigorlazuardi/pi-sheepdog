@@ -258,9 +258,9 @@ const NO_MATCH: DetectorResult = { kind: "no-match" };
 function interceptAdapterHeaders(adapter: AdapterId, headers: Record<string, string> | undefined | null): DetectorResult {
   if (!headers || adapter === "generic") return NO_MATCH;
 
-  // Multiple merged Retry-After values are ambiguous; selected adapter blocks generic guessing.
+  // Multiple merged numeric Retry-After values are ambiguous; RFC HTTP-dates also contain a comma.
   const retryAfter = getHeaderCaseInsensitive(headers, "retry-after");
-  if (retryAfter?.includes(",")) {
+  if (retryAfter && /^\s*\d+(?:\.\d+)?\s*,\s*\d/.test(retryAfter)) {
     return { kind: "stop-generic", reason: `${adapter}: ambiguous retry-after header` };
   }
   return NO_MATCH;
@@ -283,4 +283,9 @@ export function detectErrorText(adapter: AdapterId, errorMessage: string): Detec
   if (adapterResult.kind !== "no-match") return adapterResult;
   const parsed = parseGenericRateLimitError(errorMessage);
   return parsed ? { kind: "matched", parsed } : NO_MATCH;
+}
+
+export function consumeDetectorResult(result: DetectorResult, warn: (reason: string) => void): ParsedRateLimit | null {
+  if (result.kind === "stop-generic") warn(result.reason);
+  return result.kind === "matched" ? result.parsed : null;
 }
