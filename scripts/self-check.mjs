@@ -84,8 +84,11 @@ function checkStateSemantics() {
   const jsonApiKey = "JSON_API_KEY_42";
   const jsonToken = "JSON_TOKEN_42";
   const jsonAuth = "JSON_BEARER_42";
-  const secrets = `Authorization: Bearer top-secret Cookie: theme=dark; sessionid=${cookieSecret}\napi_key="${quotedSecret}" token='tok-value' password=hunter2 jwt=${jwt}\nprovider={"error":{"api_key":"${jsonApiKey}","token": "${jsonToken}","authorization":"Bearer ${jsonAuth}"}}`;
-  const secretValues = ["top-secret", cookieSecret, quotedSecret, "tok-value", "hunter2", jwt, jsonApiKey, jsonToken, jsonAuth];
+  const authenticationSecret = "RUNTIME_AUTH_SECRET_42";
+  const escapedApiKey = "ESCAPED_NESTED_API_KEY_42";
+  const runtimeProbe = `authentication: Bearer ${authenticationSecret} payload={\\"error\\":{\\"api_key\\":\\"${escapedApiKey}\\"}}`;
+  const secrets = `Authorization: Bearer top-secret Cookie: theme=dark; sessionid=${cookieSecret}\napi_key="${quotedSecret}" token='tok-value' password=hunter2 jwt=${jwt}\nprovider={"error":{"api_key":"${jsonApiKey}","token": "${jsonToken}","authorization":"Bearer ${jsonAuth}"}} ${runtimeProbe}`;
+  const secretValues = ["top-secret", cookieSecret, quotedSecret, "tok-value", "hunter2", jwt, jsonApiKey, jsonToken, jsonAuth, authenticationSecret, escapedApiKey];
   const safe = redactAndTruncateExcerpt(`${secrets} ${"x".repeat(500)}`);
   assert.equal(safe.length, 400);
   for (const secret of secretValues) assert.ok(!safe.includes(secret));
@@ -103,16 +106,16 @@ function checkStateSemantics() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sheepdog-redaction-check-"));
   try {
     const statePath = path.join(root, "state.json");
-    fs.writeFileSync(statePath, JSON.stringify({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", sourceExcerpt: secrets }));
+    fs.writeFileSync(statePath, JSON.stringify({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", sourceExcerpt: runtimeProbe }));
     updateStateFile(statePath, () => undefined, { catchallScope: "*" });
-    const persisted = fs.readFileSync(statePath, "utf8");
-    for (const secret of secretValues) assert.ok(!persisted.includes(secret));
+    const persistedMigration = fs.readFileSync(statePath, "utf8");
+    for (const secret of [authenticationSecret, escapedApiKey]) assert.ok(!persistedMigration.includes(secret));
 
     updateStateFile(statePath, (state) => {
-      state.entries["*"].redactedExcerpt = secrets;
+      state.entries["*"].redactedExcerpt = runtimeProbe;
     });
-    const rewritten = fs.readFileSync(statePath, "utf8");
-    for (const secret of secretValues) assert.ok(!rewritten.includes(secret));
+    const persistedV3Write = fs.readFileSync(statePath, "utf8");
+    for (const secret of [authenticationSecret, escapedApiKey]) assert.ok(!persistedV3Write.includes(secret));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
