@@ -560,7 +560,7 @@ export default function (pi: ExtensionAPI) {
     }
     const modelRef = computeModelRef(ctx);
     const mapper = resolveMapper(modelRef, config, CATCHALL_SCOPE);
-    debug("mapper_matched", { modelRef, adapter: mapper.adapter, scope: mapper.scopeGlob, args: mapper.args });
+    debug("mapper_matched", { modelRef, adapter: mapper.adapter, scope: mapper.scopeGlob, argNames: Object.keys(mapper.args ?? {}) });
     return mapper;
   }
 
@@ -595,7 +595,7 @@ export default function (pi: ExtensionAPI) {
         scope: scopeKey,
         delayMs: parsed.delayMs,
         excerpt: parsed.excerpt,
-        args: mapper.args,
+        argNames: Object.keys(mapper.args ?? {}),
       });
       scheduleWake(entry);
     }

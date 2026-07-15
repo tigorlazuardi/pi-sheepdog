@@ -10,8 +10,8 @@ const SENSITIVE_KEY = "(?:authorization|proxy[_-]?authorization|authentication|a
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
   // Remove multiline credentials before line-oriented header redaction can consume only their opening marker.
   [/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/gi, "[REDACTED_PRIVATE_KEY]"],
-  // URL userinfo can contain proxy credentials even when the surrounding field is otherwise safe (for example baseUrl).
-  [/\b(https?:\/\/)[^\s/@:]+:[^\s/]+@/gi, "$1[REDACTED]@"],
+  // URL userinfo can be token-only or username/password; redact both before generic credential matching.
+  [/\b(https?:\/\/)[^\s/@]+@/gi, "$1[REDACTED]@"],
   // Common standalone credential forms lack a label, so assignment-only redaction cannot catch them.
   [/\bgithub_pat_[A-Za-z0-9_]{20,}\b/g, "[REDACTED_GITHUB_TOKEN]"],
   [/\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, "[REDACTED_GITHUB_TOKEN]"],

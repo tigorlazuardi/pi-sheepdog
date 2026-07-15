@@ -110,8 +110,12 @@ function checkRedaction() {
     "sk-proj-11AA22BB33CC44DD55EE66FF77GG88HH",
   ];
   const urlPassword = "proxy-password-secret";
+  const urlToken = "opaque-url-token";
+  const urlPathToken = "opaque-path-token";
+  const urlQueryToken = "opaque-query-token";
+  const aliasSecrets = ["openai-key-secret", "access-token-secret", "client-secret-value", "auth-variant-secret", "signing-key-secret"];
   const payload = `Authorization: Bearer auth-secret Cookie: sid=cookie-secret api_key=key-secret token=token-secret password=password-secret secret=generic-secret jwt=${jwt} ${privateKey} ${standaloneSecrets.join(" ")} ${"provider-payload-".repeat(80)}`;
-  const forbidden = ["auth-secret", "cookie-secret", "key-secret", "token-secret", "password-secret", "generic-secret", jwt, "credential-contents", "/home/alice/.credentials.json", "/home/alice/.config", "adapter-token", urlPassword, ...standaloneSecrets];
+  const forbidden = ["auth-secret", "cookie-secret", "key-secret", "token-secret", "password-secret", "generic-secret", jwt, "credential-contents", "/home/alice/.credentials.json", "/home/alice/.config", "adapter-token", urlPassword, urlToken, urlPathToken, urlQueryToken, ...aliasSecrets, ...standaloneSecrets];
 
   try {
     fs.writeFileSync(debugPath, "", { mode: 0o644 });
@@ -125,9 +129,18 @@ function checkRedaction() {
       credentialContents: "credential-file-secret",
       args: {
         token: "adapter-token",
-        baseUrl: `https://proxy-user:${urlPassword}@api.example.test`,
-        nested: [{ headers: { "X-API-Key": "nested-api-key", cookie: "nested-cookie" } }],
+        baseUrl: `https://${urlToken}@api.example.test/${urlPathToken}?access_token=${urlQueryToken}`,
+        nested: [{ headers: {
+          "X-API-Key": "nested-api-key",
+          cookie: "nested-cookie",
+          openaiApiKey: aliasSecrets[0],
+          access_token: aliasSecrets[1],
+          client_secret: aliasSecrets[2],
+          proxyAuthorizationHeader: aliasSecrets[3],
+          signingKey: aliasSecrets[4],
+        } }],
       },
+      passwordUrl: `https://proxy-user:${urlPassword}@password.example.test`,
       private_key: "nested-private-key",
       githubToken: "github-field-secret",
       credentials: { username: "alice", password: "credential-password" },
@@ -157,7 +170,13 @@ function checkRedaction() {
     assert.equal(event.githubToken, "[REDACTED]");
     assert.equal(event.credentials, "[REDACTED]");
     assert.equal(event.privateKeyPem, "[REDACTED]");
-    assert.equal(event.args.baseUrl, "https://[REDACTED]@api.example.test");
+    assert.equal(event.args.baseUrl, "https://api.example.test/[REDACTED]?access_token=[REDACTED]");
+    assert.equal(event.passwordUrl, "https://password.example.test");
+    assert.equal(event.args.nested[0].headers.openaiApiKey, "[REDACTED]");
+    assert.equal(event.args.nested[0].headers.access_token, "[REDACTED]");
+    assert.equal(event.args.nested[0].headers.client_secret, "[REDACTED]");
+    assert.equal(event.args.nested[0].headers.proxyAuthorizationHeader, "[REDACTED]");
+    assert.equal(event.args.nested[0].headers.signingKey, "[REDACTED]");
     assert.ok(event.excerpt.length <= 400);
     assert.deepEqual({ event: wakeSkipped.event, scope: wakeSkipped.scope, reason: wakeSkipped.reason }, {
       event: "wake_skipped",
