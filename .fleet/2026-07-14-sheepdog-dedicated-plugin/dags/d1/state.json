@@ -1937,18 +1937,26 @@
       "runtime": {
         "status": "running",
         "fixAttempt": 0,
-        "handoverAttempt": 0,
+        "handoverAttempt": 2,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t9",
-        "commitSha": null,
-        "acceptanceResult": null,
-        "agentId": "spawn-t9-frontier-worker-b96a5c2b-9a41-430c-b57e-16cf42cc3b4e"
+        "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe",
+        "acceptanceResult": "pass",
+        "agentId": "t9-frontier-standards-recovery-1c10879f-94b5-49e3-9962-64b1c4844f89"
       },
       "sync": {
         "mirrored": true,
-        "pushed": false
+        "pushed": true
       },
       "attributes": {
-        "fixedPoint": "509fa4b0fb4123ed26b34cc0c1094963a198537d"
+        "fixedPoint": "509fa4b0fb4123ed26b34cc0c1094963a198537d",
+        "staleRecovery": "frontier-handover-no-commit",
+        "resumeTieBreaker": "fail",
+        "resumeTieBreakerAt": "2026-07-15T01:15:24Z",
+        "resumeTieBreakerSummary": "stale frontier handover had no task commit; fresh frontier recovery spawned",
+        "lastVerdict": "HANDOVER",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-implementer-2-handover.md",
+        "acceptanceVerification": "npm run self-check -- redaction && npm run check passed",
+        "acceptanceVerifiedAt": "2026-07-15T01:18:52Z"
       },
       "audit": [
         {
@@ -1957,15 +1965,18 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t9-frontier-worker-2e7c4b6f-c374-45b5-8895-84c8cfd4afe0",
           "startedAt": "2026-07-15T01:11:07Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T01:14:29Z",
           "status": "ok",
           "error": null,
-          "summary": "Frontier implementer spawned.",
+          "summary": "Debug logger, runtime events, recursive redaction, and redaction self-check implemented but uncommitted. Initial check exposed private-key redaction ordering bug; fix applied, full required check still pending.",
           "attributes": {
             "class": "frontier",
-            "attempt": "1"
+            "attempt": "1",
+            "verdict": "HANDOVER",
+            "acceptanceResult": "pending rerun: npm run self-check -- redaction && npm run check",
+            "tokens": "turn-limit"
           },
-          "reportRef": null
+          "reportRef": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-9"
         },
         {
           "role": "worker",
@@ -1973,14 +1984,110 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "spawn-t9-frontier-worker-b96a5c2b-9a41-430c-b57e-16cf42cc3b4e",
           "startedAt": "2026-07-15T01:12:01Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": "Frontier implementer spawned for Ticket 9.",
+          "endedAt": "2026-07-15T01:15:24Z",
+          "status": "error",
+          "error": "stale running agent missing on resume; no task commit present",
+          "summary": "Stale frontier Ticket 9 handover missing on resume; no task commit present. Fresh frontier recovery spawned.",
           "attributes": {
             "class": "frontier",
             "attempt": "1",
             "fixedPoint": "509fa4b0fb4123ed26b34cc0c1094963a198537d"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-handover-8d7ba98e-310b-44da-bef3-167f014214d9",
+          "startedAt": "2026-07-15T01:14:29Z",
+          "endedAt": "2026-07-15T01:15:24Z",
+          "status": "error",
+          "error": "stale running agent missing on resume; no task commit present",
+          "summary": "Stale frontier Ticket 9 handover missing on resume; no task commit present. Fresh frontier recovery spawned.",
+          "attributes": {
+            "class": "frontier",
+            "resume": "handover",
+            "handoverAttempt": "1"
+          },
+          "reportRef": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-9"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-recovery-69d1b017-6eaf-4036-adab-5b3d9bdfc9bc",
+          "startedAt": "2026-07-15T01:15:24Z",
+          "endedAt": "2026-07-15T01:18:18Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Ticket 9 debug logging and recursive redaction committed. Redaction self-check passes; full routing check incomplete because dependencies were absent and install exceeded turn limit.",
+          "attributes": {
+            "class": "frontier",
+            "resume": "handover",
+            "handoverAttempt": "2",
+            "resumeReason": "stale-agent-recovery",
+            "fixedPoint": "509fa4b0fb4123ed26b34cc0c1094963a198537d",
+            "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe",
+            "acceptanceResult": "incomplete",
+            "tokens": "unavailable",
+            "verdict": "HANDOVER"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-implementer-2-handover.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-standards-34ab9535-bc72-4c20-8a0a-bf00cfb9593b",
+          "startedAt": "2026-07-15T01:18:52Z",
+          "endedAt": "2026-07-15T01:19:08Z",
+          "status": "error",
+          "error": "relay disconnected before verdict; fresh frontier standards review required",
+          "summary": "Relay disconnected before frontier standards verdict; review will restart fresh.",
+          "attributes": {
+            "class": "frontier",
+            "axis": "standards",
+            "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe",
+            "acceptanceResult": "pass"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-standards-a59b068c-35a3-4675-8cc2-0cee59210b72",
+          "startedAt": "2026-07-15T01:19:41Z",
+          "endedAt": "2026-07-15T01:21:16Z",
+          "status": "error",
+          "error": "stale running frontier standards reviewer superseded on relay recovery",
+          "summary": "Stale frontier standards review superseded; direct fresh frontier standards verdict required.",
+          "attributes": {
+            "class": "frontier",
+            "axis": "standards",
+            "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe",
+            "acceptanceResult": "pass",
+            "recovery": "relay-stale"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-standards-recovery-1c10879f-94b5-49e3-9962-64b1c4844f89",
+          "startedAt": "2026-07-15T01:21:16Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Fresh direct frontier standards review spawned for Ticket 9.",
+          "attributes": {
+            "class": "frontier",
+            "axis": "standards",
+            "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe",
+            "acceptanceResult": "pass",
+            "recovery": "relay"
           },
           "reportRef": null
         }
