@@ -44,6 +44,7 @@ import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } f
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { appendDebugEvent } from "./sheepdog-debug.ts";
 import { consumeDetectorResult, detectErrorText, detectHeaders, type ParsedRateLimit } from "./sheepdog-detector.ts";
 import { loadMapperConfig, resolveMapper, type AdapterId, type LoadedMapperConfig } from "./sheepdog-mapper.ts";
 import { loadStateFile, mergeDetectedWakeEntry, redactAndTruncateExcerpt, reportStateLockFailure, updateStateFile } from "./sheepdog-state.ts";
@@ -69,6 +70,14 @@ function getSheepdogDir(): string {
 
 function getConfigPath(): string {
   return path.join(getSheepdogDir(), "config.json");
+}
+
+function getDebugPath(): string {
+  return path.join(getSheepdogDir(), "debug.log");
+}
+
+function debug(event: string, details: Record<string, unknown> = {}): void {
+  appendDebugEvent(getDebugPath(), event, details);
 }
 
 // Scope key used for entries with no resolvable model (no ctx.model, or a
@@ -192,7 +201,12 @@ function updateState<T>(updater: (state: StateFileV3) => T): T {
   return updateStateFile(
     getStatePath(),
     (state) => updater(state as StateFileV3),
-    { catchallScope: CATCHALL_SCOPE },
+    {
+      catchallScope: CATCHALL_SCOPE,
+      lockOptions: {
+        onRetry: (attempt: number) => debug("state_write_retry", { operation: "state-update", attempt }),
+      },
+    },
   ) as T;
 }
 
@@ -473,6 +487,7 @@ export default function (pi: ExtensionAPI) {
   function fireWake(scopeKey: string): void {
     try {
       clearTimer(scopeKey);
+      debug("wake_due", { scope: scopeKey });
       const entry = updateState((state) => {
         const current = state.entries[scopeKey];
         if (!current || current.status !== "pending") {
@@ -490,8 +505,9 @@ export default function (pi: ExtensionAPI) {
       setFooterStatus();
       maybeStopTicker();
       pi.sendUserMessage(buildResumeMessage(entry), { deliverAs: "followUp" });
+      debug("wake_fired", { scope: scopeKey, adapter: entry.adapter, source: entry.source });
     } catch (error) {
-      reportStateLockFailure(error, "fire-wake");
+      reportStateLockFailure(error, "fire-wake", (message) => debug("state_write_retry", { operation: "fire-wake", warning: message }));
       // fail open: best-effort extension must not throw out of a timer callback.
     }
   }
@@ -534,10 +550,15 @@ export default function (pi: ExtensionAPI) {
   // design, scopes no longer compete with each other.
   function resolveDetectionMapper(ctx: ExtensionContext): ReturnType<typeof resolveMapper> {
     const config = loadConfig();
+    debug("config_loaded", { validRuleCount: config.rules.length, warningCount: config.warnings.length });
     for (const warning of config.warnings) {
+      debug("config_warning", { warning });
       ctx.ui.notify(`Sheepdog config: ${warning}. Invalid rule skipped; edit ${getConfigPath()}.`, "warning");
     }
-    return resolveMapper(computeModelRef(ctx), config, CATCHALL_SCOPE);
+    const modelRef = computeModelRef(ctx);
+    const mapper = resolveMapper(modelRef, config, CATCHALL_SCOPE);
+    debug("mapper_matched", { modelRef, adapter: mapper.adapter, scope: mapper.scopeGlob, args: mapper.args });
+    return mapper;
   }
 
   function upsertDetectedState(ctx: ExtensionContext, parsed: ParsedRateLimit, source: "provider-429" | "agent_end", mapper: ReturnType<typeof resolveMapper>): void {
@@ -565,6 +586,14 @@ export default function (pi: ExtensionAPI) {
       return { ...nextEntry };
     });
     if (entry) {
+      debug("detection_matched", {
+        source,
+        adapter: mapper.adapter,
+        scope: scopeKey,
+        delayMs: parsed.delayMs,
+        excerpt: parsed.excerpt,
+        args: mapper.args,
+      });
       scheduleWake(entry);
     }
   }
@@ -583,16 +612,19 @@ export default function (pi: ExtensionAPI) {
     try {
       lastCtx = ctx;
       clearLegacyStatus();
+      const expiredScopes: string[] = [];
       const state = updateState((current) => {
         const now = Date.now();
         for (const entry of Object.values(current.entries)) {
           if (entry.status === "pending" && new Date(entry.wakeAt).getTime() <= now) {
             entry.status = "expired";
             entry.updatedAt = new Date(now).toISOString();
+            expiredScopes.push(entry.scopeGlob);
           }
         }
         return { ...current };
       }) ?? loadState();
+      for (const scope of expiredScopes) debug("wake_expired", { scope, reason: "startup_overdue" });
       if (!state) {
         setFooterStatus();
         return;
@@ -603,7 +635,7 @@ export default function (pi: ExtensionAPI) {
         }
       }
     } catch (error) {
-      reportStateLockFailure(error, "session-start");
+      reportStateLockFailure(error, "session-start", (message) => debug("state_write_retry", { operation: "session-start", warning: message }));
       // fail open
     }
   });
@@ -621,13 +653,14 @@ export default function (pi: ExtensionAPI) {
 
       const mapper = resolveDetectionMapper(ctx);
       const parsed = consumeDetectorResult(detectHeaders(mapper.adapter, event.headers), (reason) => {
+        debug("detection_blocked", { source: "provider-429", adapter: mapper.adapter, reason });
         ctx.ui.notify(`Sheepdog detection blocked generic fallback: ${reason}.`, "warning");
       });
       if (!parsed) return;
 
       upsertDetectedState(ctx, parsed, "provider-429", mapper);
     } catch (error) {
-      reportStateLockFailure(error, "provider-response");
+      reportStateLockFailure(error, "provider-response", (message) => debug("state_write_retry", { operation: "provider-response", warning: message }));
       // fail open
     }
   });
@@ -647,13 +680,14 @@ export default function (pi: ExtensionAPI) {
       const errorMessage = String(assistant.errorMessage ?? "");
       const mapper = resolveDetectionMapper(ctx);
       const parsed = consumeDetectorResult(detectErrorText(mapper.adapter, errorMessage), (reason) => {
+        debug("detection_blocked", { source: "agent_end", adapter: mapper.adapter, reason });
         ctx.ui.notify(`Sheepdog detection blocked generic fallback: ${reason}.`, "warning");
       });
       if (!parsed) return;
 
       upsertDetectedState(ctx, parsed, "agent_end", mapper);
     } catch (error) {
-      reportStateLockFailure(error, "agent-end");
+      reportStateLockFailure(error, "agent-end", (message) => debug("state_write_retry", { operation: "agent-end", warning: message }));
       // fail open
     }
   });

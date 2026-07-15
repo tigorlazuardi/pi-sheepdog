@@ -8,6 +8,8 @@ export const MAX_PERSISTED_EXCERPT = 400;
 
 const SENSITIVE_KEY = "(?:authorization|proxy[_-]?authorization|authentication|auth|auth[_-]?token|bearer|bearer[_-]?token|api[_-]?key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret|client[_-]?secret)";
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
+  // Remove multiline credentials before line-oriented header redaction can consume only their opening marker.
+  [/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/gi, "[REDACTED_PRIVATE_KEY]"],
   // Match JSON plus JSON-escaped fragments such as {\"api_key\":\"secret\"}.
   [new RegExp(`(\\b${SENSITIVE_KEY}\\b(?:\\\\*["'])?\\s*[:=]\\s*)((?:\\\\*)["']).*?\\2`, "gi"), "$1[REDACTED]"],
   [/(\b(?:cookie|set-cookie)\b(?:\\*["'])?\s*:\s*)((?:\\*)["']).*?\2/gi, "$1[REDACTED]"],
@@ -15,7 +17,6 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
   [/(\b(?:cookie|set-cookie)\s*[:=]\s*)[^\r\n]*/gi, "$1[REDACTED]"],
   [new RegExp(`(\\b${SENSITIVE_KEY}\\b(?:\\\\*["'])?\\s*[:=]\\s*)(?:(?:bearer|basic)\\s+[^\\s,;}]+|[^\\s,;}]+)`, "gi"), "$1[REDACTED]"],
   [/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_JWT]"],
-  [/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/gi, "[REDACTED_PRIVATE_KEY]"],
 ];
 
 export function redactAndTruncateExcerpt(value, maxLength = MAX_PERSISTED_EXCERPT) {
@@ -210,6 +211,7 @@ export function withFileLock(lockPath, fn, options: any = {}) {
   const staleMs = options.staleMs ?? 30_000;
   const now = options.now ?? Date.now;
   const deadline = now() + timeoutMs;
+  let retries = 0;
 
   while (true) {
     const ownerId = randomUUID();
@@ -233,6 +235,8 @@ export function withFileLock(lockPath, fn, options: any = {}) {
     } catch (error) {
       if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST") throw error;
       const currentTime = now();
+      retries += 1;
+      options.onRetry?.(retries);
       if (reclaimStaleLock(lockPath, staleMs, currentTime)) continue;
       if (currentTime >= deadline) {
         throw new StateLockTimeoutError(`Timed out acquiring state lock ${lockPath}; state update was not written`, { cause: error });

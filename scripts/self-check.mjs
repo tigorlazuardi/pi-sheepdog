@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { appendDebugEvent } from "../extensions/sheepdog-debug.ts";
 import { consumeDetectorResult, detectErrorText, detectHeaders } from "../extensions/sheepdog-detector.ts";
 import { loadMapperConfig, resolveMapper } from "../extensions/sheepdog-mapper.ts";
 import { loadStateFile, mergeDetectedWakeEntry, normalizeState, redactAndTruncateExcerpt, reportStateLockFailure, StateLockTimeoutError, updateStateFile, withFileLock } from "../extensions/sheepdog-state.ts";
@@ -95,6 +96,47 @@ function checkTimeFormatting() {
   assert.equal(formatLocalWakeTime(new Date(2027, 0, 5, 7, 45), now), `${MONTH_DAY_YEAR_FORMAT.format(new Date(2027, 0, 5, 7, 45))} 07:45`);
 }
 
+
+function checkRedaction() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sheepdog-debug-check-"));
+  const debugPath = path.join(root, "debug.log");
+  const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature";
+  const privateKey = "-----BEGIN PRIVATE KEY-----\ncredential-contents\n-----END PRIVATE KEY-----";
+  const payload = `Authorization: Bearer auth-secret Cookie: sid=cookie-secret api_key=key-secret token=token-secret password=password-secret secret=generic-secret jwt=${jwt} ${privateKey} ${"provider-payload-".repeat(80)}`;
+  const forbidden = ["auth-secret", "cookie-secret", "key-secret", "token-secret", "password-secret", "generic-secret", jwt, "credential-contents", "/home/alice/.credentials.json", "/home/alice/.config", "adapter-token"];
+
+  try {
+    appendDebugEvent(debugPath, "detection_matched", {
+      excerpt: payload,
+      authorization: "Bearer nested-auth",
+      credentialFile: "/home/alice/.credentials.json",
+      configDir: "/home/alice/.config",
+      credentialContents: "credential-file-secret",
+      args: {
+        token: "adapter-token",
+        baseUrl: "https://api.example.test",
+        nested: [{ headers: { "X-API-Key": "nested-api-key", cookie: "nested-cookie" } }],
+      },
+      private_key: "nested-private-key",
+    }, new Date("2026-07-15T00:00:00.000Z"));
+    const raw = fs.readFileSync(debugPath, "utf8");
+    const event = JSON.parse(raw.trim());
+    for (const secret of [...forbidden, "nested-auth", "credential-file-secret", "nested-api-key", "nested-cookie", "nested-private-key"]) assert.ok(!raw.includes(secret), `debug log leaked ${secret}`);
+    assert.equal(event.event, "detection_matched");
+    assert.equal(event.timestamp, "2026-07-15T00:00:00.000Z");
+    assert.equal(event.authorization, "[REDACTED]");
+    assert.equal(event.credentialFile, "[REDACTED]");
+    assert.equal(event.args.token, "[REDACTED]");
+    assert.equal(event.args.nested[0].headers["X-API-Key"], "[REDACTED]");
+    assert.equal(event.private_key, "[REDACTED]");
+    assert.equal(event.args.baseUrl, "https://api.example.test");
+    assert.ok(event.excerpt.length <= 400);
+    assert.equal(raw.split("\n").filter(Boolean).length, 1);
+    assert.equal(fs.statSync(debugPath).mode & 0o777, 0o600);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
 
 function checkStateSemantics() {
   const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature";
@@ -308,6 +350,9 @@ if (mode === "detection") {
   checkLockRecovery();
   await checkConcurrentMerge();
   console.log("self-check: state ok");
+} else if (mode === "redaction") {
+  checkRedaction();
+  console.log("self-check: redaction ok");
 } else {
   console.error(`unknown self-check mode: ${mode || "(missing)"}`);
   process.exit(1);
