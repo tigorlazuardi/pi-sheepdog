@@ -1935,13 +1935,13 @@
         "checkCommand": "npm run self-check -- redaction && npm run check"
       },
       "runtime": {
-        "status": "running",
+        "status": "pending",
         "fixAttempt": 1,
-        "handoverAttempt": 2,
+        "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t9",
-        "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe",
+        "commitSha": "4d9a2c9a8ac09458a727ec07b4dd825bcd14081d",
         "acceptanceResult": "pass",
-        "agentId": "t9-frontier-spec-6f4ac790-841d-4e81-a0fc-1915973a45af"
+        "agentId": null
       },
       "sync": {
         "mirrored": true,
@@ -1954,12 +1954,15 @@
         "resumeTieBreakerAt": "2026-07-15T01:15:24Z",
         "resumeTieBreakerSummary": "stale frontier handover had no task commit; fresh frontier recovery spawned",
         "lastVerdict": "ESCALATE",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-frontier-standards-direct-02b3639.md",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-frontier-spec-direct-af9bc2c.md",
         "acceptanceVerification": "npm run self-check -- redaction && npm run check passed",
         "acceptanceVerifiedAt": "2026-07-15T01:18:52Z",
         "escalationReason": "Low-tolerance secrets/redaction diff requires frontier escalation.",
         "escalationAt": "2026-07-15T01:25:27Z",
-        "frontierReviewDisposition": "frontier-standards-escalated"
+        "frontierReviewDisposition": "frontier-standards-escalated",
+        "frontierSpecDisposition": "escalated-not-accepted",
+        "blockedReason": "Fresh frontier spec review found missing required wake-skipped and panel CRUD debug events; no merge.",
+        "stoppedAt": "2026-07-15T01:28:33Z"
       },
       "audit": [
         {
@@ -2106,18 +2109,21 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t9-frontier-fix-49dc09f8-68c2-40a7-9764-bb81e50ffad2",
           "startedAt": "2026-07-15T01:23:10Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T01:26:25Z",
           "status": "ok",
           "error": null,
-          "summary": "Fresh frontier worker spawned to remediate Ticket 9 standards privacy findings.",
+          "summary": "Redaction and file-mode fixes implemented but final post-edit check, report, and commit remain due turn limit.",
           "attributes": {
             "class": "frontier",
             "resume": "review-fix",
             "fixAttempt": "1",
             "reviewAxis": "standards",
-            "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe"
+            "commitSha": "none",
+            "verdict": "HANDOVER",
+            "acceptanceResult": "skipped",
+            "tokens": "turn-limit"
           },
-          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-reviewer-standards-1.md"
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-implementer-1-handover.md"
         },
         {
           "role": "worker",
@@ -2125,18 +2131,21 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t9-frontier-fix-5afe9a6e-0f26-4a05-8d78-c6f2126f92cf",
           "startedAt": "2026-07-15T01:23:37Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T01:26:03Z",
           "status": "ok",
           "error": null,
-          "summary": "Frontier remediation implementer spawned for Ticket 9.",
+          "summary": "Frontier standards remediation committed; redaction self-check and full repository check passed.",
           "attributes": {
             "class": "frontier",
             "resume": "review-fix",
             "fixAttempt": "1",
             "reviewAxis": "standards",
-            "escalated": "true"
+            "escalated": "true",
+            "commitSha": "af9bc2c4135030666f66221a1453d06f78c7d5f1",
+            "acceptanceResult": "pass",
+            "verdict": "PASS"
           },
-          "reportRef": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-9"
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-frontier-standards-remediation.md"
         },
         {
           "role": "reviewer",
@@ -2144,16 +2153,74 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t9-frontier-spec-6f4ac790-841d-4e81-a0fc-1915973a45af",
           "startedAt": "2026-07-15T01:25:27Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T01:28:33Z",
           "status": "ok",
           "error": null,
-          "summary": "Fresh frontier spec review spawned after direct frontier standards escalation.",
+          "summary": "Independent routing check passed with exit 0, but Ticket 9 lacks required wake-skipped and panel CRUD debug events. Low-tolerance secrets/redaction surface remains frontier.",
           "attributes": {
             "class": "frontier",
             "axis": "spec",
             "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe",
             "acceptanceResult": "pass",
-            "priorReviewRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-frontier-standards-direct-02b3639.md"
+            "priorReviewRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-frontier-standards-direct-02b3639.md",
+            "verdict": "ESCALATE",
+            "tokens": "turn-limit",
+            "reviewCommitSha": "af9bc2c4135030666f66221a1453d06f78c7d5f1"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-frontier-spec-direct-af9bc2c.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-standards2-bfff9824-b3a3-4d0a-946f-84bb07e65eed",
+          "startedAt": "2026-07-15T01:26:03Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Fresh frontier standards reviewer spawned after remediation.",
+          "attributes": {
+            "class": "frontier",
+            "axis": "standards",
+            "commitSha": "af9bc2c4135030666f66221a1453d06f78c7d5f1"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-handover-8529e41c-e143-4c26-9c37-852d531f15d8",
+          "startedAt": "2026-07-15T01:26:25Z",
+          "endedAt": "2026-07-15T01:28:29Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Diff final memenuhi Ticket 9 dan remediasi privasi. Check exact lulus; report dikomit tanpa menyentuh DAG state.",
+          "attributes": {
+            "class": "frontier",
+            "resume": "handover",
+            "handoverAttempt": "3",
+            "commitSha": "4d9a2c9a8ac09458a727ec07b4dd825bcd14081d",
+            "verdict": "PASS",
+            "acceptanceResult": "pass",
+            "tokens": "11842"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-implementer-2.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-standards-4de7f495-8da1-4d8c-a2e7-b3d996129742",
+          "startedAt": "2026-07-15T01:28:29Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Fresh frontier standards review spawned for Ticket 9 remediation.",
+          "attributes": {
+            "class": "frontier",
+            "axis": "standards",
+            "commitSha": "4d9a2c9a8ac09458a727ec07b4dd825bcd14081d"
           },
           "reportRef": null
         }
