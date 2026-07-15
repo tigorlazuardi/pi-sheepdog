@@ -1455,18 +1455,18 @@
       ],
       "routing": {
         "failureTolerance": "standard",
-        "worker": "worker",
-        "reviewer": "worker",
+        "worker": "frontier",
+        "reviewer": "frontier",
         "checkCommand": "npm run self-check -- detection && npm run check"
       },
       "runtime": {
-        "status": "running",
+        "status": "blocked",
         "fixAttempt": 1,
         "handoverAttempt": 0,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4",
         "commitSha": "faeac92cbfbccd81f8e89f6a081f2552c21c5b50",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t4-0a6e53ff-8f51-488f-b4cb-3d8a0cddb8dd"
+        "agentId": null
       },
       "sync": {
         "mirrored": true,
@@ -1477,7 +1477,9 @@
         "reconciliation": "premature dispatch invalidated; no viable work beyond integration base",
         "blockedBy": "t5",
         "lastVerdict": "FAIL",
-        "lastReportRef": "scripts/self-check.mjs:106"
+        "lastReportRef": "scripts/self-check.mjs:106",
+        "blockedReason": "t5 failed final frontier spec review; t4 depends on t5",
+        "effectiveTier": "frontier"
       },
       "audit": [
         {
@@ -1547,13 +1549,14 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "spawn-t4-0a6e53ff-8f51-488f-b4cb-3d8a0cddb8dd",
           "startedAt": "2026-07-14T23:44:17Z",
-          "endedAt": null,
-          "status": "ok",
-          "error": null,
-          "summary": "Frontier worker spawned for Ticket 4.",
+          "endedAt": "2026-07-15T00:34:20Z",
+          "status": "error",
+          "error": "prerequisite t5 failed final frontier spec review",
+          "summary": "Frontier Ticket 4 recovery stopped: prerequisite t5 failed final frontier spec review.",
           "attributes": {
             "class": "frontier",
-            "attempt": "1"
+            "attempt": "1",
+            "recovery": "blocked-by-t5-failure"
           },
           "reportRef": null
         }
