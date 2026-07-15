@@ -6,19 +6,25 @@ import { randomUUID } from "node:crypto";
 export const STATE_VERSION = 3;
 export const MAX_PERSISTED_EXCERPT = 400;
 
+const SENSITIVE_KEY = "(?:authorization|proxy[_-]?authorization|authentication|auth|auth[_-]?token|bearer|bearer[_-]?token|api[_-]?key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret|client[_-]?secret)";
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
+  // Match JSON plus JSON-escaped fragments such as {\"api_key\":\"secret\"}.
+  [new RegExp(`(\\b${SENSITIVE_KEY}\\b(?:\\\\*["'])?\\s*[:=]\\s*)((?:\\\\*)["']).*?\\2`, "gi"), "$1[REDACTED]"],
+  [/(\b(?:cookie|set-cookie)\b(?:\\*["'])?\s*:\s*)((?:\\*)["']).*?\2/gi, "$1[REDACTED]"],
   // ponytail: redact whole cookie header; preserving individual safe cookies is not worth risking session leakage.
-  [/(\b(?:cookie|set-cookie)\s*:\s*)[^\r\n]*/gi, "$1[REDACTED]"],
-  [/(\b(?:authorization|proxy-authorization)\s*[:=]\s*)(?:bearer|basic)?\s*[^\s,;]+/gi, "$1[REDACTED]"],
-  [/(\b(?:api[_-]?key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret)\b\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)/gi, "$1[REDACTED]"],
+  [/(\b(?:cookie|set-cookie)\s*[:=]\s*)[^\r\n]*/gi, "$1[REDACTED]"],
+  [new RegExp(`(\\b${SENSITIVE_KEY}\\b(?:\\\\*["'])?\\s*[:=]\\s*)(?:(?:bearer|basic)\\s+[^\\s,;}]+|[^\\s,;}]+)`, "gi"), "$1[REDACTED]"],
   [/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_JWT]"],
   [/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/gi, "[REDACTED_PRIVATE_KEY]"],
 ];
 
 export function redactAndTruncateExcerpt(value, maxLength = MAX_PERSISTED_EXCERPT) {
   let safe = typeof value === "string" ? value : "";
-  for (const [pattern, replacement] of SECRET_PATTERNS) {
-    safe = safe.replace(pattern, replacement);
+  // Re-run because redacting one encoded layer can expose another sensitive assignment.
+  for (let pass = 0; pass < 4; pass += 1) {
+    const previous = safe;
+    for (const [pattern, replacement] of SECRET_PATTERNS) safe = safe.replace(pattern, replacement);
+    if (safe === previous) break;
   }
   return safe.slice(0, maxLength);
 }
