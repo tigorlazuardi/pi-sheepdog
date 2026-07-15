@@ -1562,12 +1562,12 @@
       },
       "runtime": {
         "status": "running",
-        "fixAttempt": 1,
+        "fixAttempt": 2,
         "handoverAttempt": 0,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4",
         "commitSha": "429bc0f1c02720e689fb58f9d47249bf4a2e28ed",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t4-frontier-spec-5f35ccde-68e2-4af3-9237-3356389f6607"
+        "agentId": "spawn-t4-frontier-spec-fix-5fbf7859-844e-45be-9fa9-a6ebdd2708a4"
       },
       "sync": {
         "mirrored": true,
@@ -1577,11 +1577,13 @@
         "reconciledAt": "2026-07-15T00:01:00Z",
         "reconciliation": "premature dispatch invalidated; no viable work beyond integration base",
         "blockedBy": null,
-        "lastVerdict": "PENDING_SPEC_REVIEW",
-        "lastReportRef": "scripts/self-check.mjs:106",
+        "lastVerdict": "FAIL",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-reviewer-spec-1.md",
         "blockedReason": null,
         "effectiveTier": "frontier",
-        "reactivatedAt": "2026-07-15T00:54:51Z"
+        "reactivatedAt": "2026-07-15T00:54:51Z",
+        "staleReviewerRecovery": "bounded-direct-frontier-spec",
+        "staleReviewerRecoveryAt": "2026-07-15T01:03:01Z"
       },
       "audit": [
         {
@@ -1710,17 +1712,58 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "spawn-t4-frontier-spec-5f35ccde-68e2-4af3-9237-3356389f6607",
           "startedAt": "2026-07-15T01:02:05Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T01:05:15Z",
           "status": "ok",
           "error": null,
-          "summary": "Frontier spec review spawned after frontier standards PASS.",
+          "summary": "Valid RFC Retry-After dates are incorrectly blocked for selected adapters. Acceptance command passed.",
           "attributes": {
             "axis": "spec",
             "class": "frontier",
             "commitSha": "429bc0f1c02720e689fb58f9d47249bf4a2e28ed",
-            "checkCommand": "npm run self-check -- detection && npm run check"
+            "checkCommand": "npm run self-check -- detection && npm run check",
+            "recovery": "stale-reviewer",
+            "verdict": "FAIL",
+            "acceptanceResult": "pass",
+            "findings": "1"
           },
-          "reportRef": "extensions/sheepdog-detector.ts:274; scripts/self-check.mjs:6"
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-reviewer-spec-1.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "recover-t4-frontier-spec-402e1455-302e-4d83-983f-84f4d244a982",
+          "startedAt": "2026-07-15T01:03:01Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Bounded direct frontier spec review spawned to recover stale review.",
+          "attributes": {
+            "axis": "spec",
+            "class": "frontier",
+            "commitSha": "429bc0f1c02720e689fb58f9d47249bf4a2e28ed",
+            "checkCommand": "npm run self-check -- detection && npm run check",
+            "recovery": "stale-reviewer"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "spawn-t4-frontier-spec-fix-5fbf7859-844e-45be-9fa9-a6ebdd2708a4",
+          "startedAt": "2026-07-15T01:05:15Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Frontier worker spawned to fix spec finding.",
+          "attributes": {
+            "class": "frontier",
+            "resume": "review-fix",
+            "fixAttempt": "2",
+            "reviewAxis": "spec"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-reviewer-spec-1.md"
         }
       ]
     },
