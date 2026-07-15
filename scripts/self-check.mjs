@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { loadMapperConfig, resolveMapper } from "../extensions/sheepdog-mapper.ts";
-import { loadStateFile, mergeDetectedWakeEntry, normalizeState, updateStateFile } from "../extensions/sheepdog-state.ts";
+import { loadStateFile, mergeDetectedWakeEntry, normalizeState, redactAndTruncateExcerpt, updateStateFile, withFileLock } from "../extensions/sheepdog-state.ts";
 
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
   hour: "2-digit",
@@ -78,9 +78,18 @@ function checkTimeFormatting() {
 
 
 function checkStateSemantics() {
-  const migrated = normalizeState({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", delayMs: 120000, sourceExcerpt: "provider response 429; retry-after=60" }, { catchallScope: "*" });
+  const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature";
+  const secrets = `Authorization: Bearer top-secret api_key=sk-live token='tok-value' password=hunter2 jwt=${jwt}`;
+  const safe = redactAndTruncateExcerpt(`${secrets} ${"x".repeat(500)}`);
+  assert.equal(safe.length, 400);
+  for (const secret of ["top-secret", "sk-live", "tok-value", "hunter2", jwt]) assert.ok(!safe.includes(secret));
+  assert.match(safe, /Authorization: \[REDACTED\]/);
+  assert.match(safe, /api_key=\[REDACTED\]/);
+
+  const migrated = normalizeState({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", delayMs: 120000, sourceExcerpt: `provider response 429; ${secrets}` }, { catchallScope: "*" });
   assert.equal(migrated.version, 3);
-  assert.equal(migrated.entries["*"].redactedExcerpt, "provider response 429; retry-after=60");
+  assert.ok(!migrated.entries["*"].redactedExcerpt.includes("top-secret"));
+  assert.equal(migrated.entries["*"].source, "provider-429");
   assert.equal(migrated.entries["*"].originalSource, undefined);
 
   const existingManual = {
@@ -153,6 +162,25 @@ function runNode(scriptPath, ...args) {
   });
 }
 
+function checkLockRecovery() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sheepdog-lock-check-"));
+  const lockPath = path.join(root, "state.json.lock");
+  try {
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, hostname: os.hostname(), createdAtMs: 0, ownerId: "live" }));
+    assert.throws(
+      () => withFileLock(lockPath, () => assert.fail("live lock entered"), { timeoutMs: 0, staleMs: 1, waitMs: 1 }),
+      /Timed out acquiring state lock/,
+    );
+    assert.equal(JSON.parse(fs.readFileSync(lockPath, "utf8")).ownerId, "live");
+
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: 2_147_483_647, hostname: os.hostname(), createdAtMs: 0, ownerId: "dead" }));
+    assert.equal(withFileLock(lockPath, () => "recovered", { timeoutMs: 50, staleMs: 1, waitMs: 1 }), "recovered");
+    assert.ok(!fs.existsSync(lockPath));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function checkConcurrentMerge() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sheepdog-self-check-"));
   try {
@@ -184,6 +212,7 @@ if (mode === "time") {
   console.log("self-check: mapper ok");
 } else if (mode === "state") {
   checkStateSemantics();
+  checkLockRecovery();
   await checkConcurrentMerge();
   console.log("self-check: state ok");
 } else {

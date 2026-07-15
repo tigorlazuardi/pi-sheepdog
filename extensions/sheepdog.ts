@@ -45,7 +45,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { loadMapperConfig, resolveMapper, type LoadedMapperConfig } from "./sheepdog-mapper.ts";
-import { loadStateFile, mergeDetectedWakeEntry, updateStateFile } from "./sheepdog-state.ts";
+import { loadStateFile, mergeDetectedWakeEntry, redactAndTruncateExcerpt, updateStateFile } from "./sheepdog-state.ts";
 
 const STATUS_KEY = "sheepdog";
 const LEGACY_STATUS_KEY = "rate-limit-wakeup";
@@ -226,7 +226,7 @@ function parseRateLimitError(errorMessage: string): ParsedRateLimit | null {
 
   return {
     delayMs: durationMs + SAFETY_BUFFER_MS,
-    excerpt: errorMessage.slice(0, 400),
+    excerpt: redactAndTruncateExcerpt(errorMessage),
   };
 }
 
@@ -376,7 +376,7 @@ function parseProviderRateLimit(headers: Record<string, string> | undefined | nu
 
   return {
     delayMs: delayMs + SAFETY_BUFFER_MS,
-    excerpt: excerpt.slice(0, 400),
+    excerpt: redactAndTruncateExcerpt(excerpt),
   };
 }
 
@@ -432,16 +432,12 @@ function loadState(): StateFileV3 | null {
   return loadStateFile(getStatePath(), { catchallScope: CATCHALL_SCOPE }) as StateFileV3 | null;
 }
 
-function updateState<T>(updater: (state: StateFileV3) => T): T | undefined {
-  try {
-    return updateStateFile(
-      getStatePath(),
-      (state) => updater(state as StateFileV3),
-      { catchallScope: CATCHALL_SCOPE },
-    ) as T;
-  } catch {
-    return undefined;
-  }
+function updateState<T>(updater: (state: StateFileV3) => T): T {
+  return updateStateFile(
+    getStatePath(),
+    (state) => updater(state as StateFileV3),
+    { catchallScope: CATCHALL_SCOPE },
+  ) as T;
 }
 
 function pendingEntries(state: StateFileV3 | null): WakeEntry[] {
@@ -796,7 +792,7 @@ export default function (pi: ExtensionAPI) {
         scopeGlob: scopeKey,
         wakeAt: newWakeAt,
         delayMs: parsed.delayMs,
-        redactedExcerpt: parsed.excerpt,
+        redactedExcerpt: redactAndTruncateExcerpt(parsed.excerpt),
         source,
         adapter: mapper.adapter,
         modelRef,

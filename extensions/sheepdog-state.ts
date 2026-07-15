@@ -1,7 +1,25 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
+import { randomUUID } from "node:crypto";
 
 export const STATE_VERSION = 3;
+export const MAX_PERSISTED_EXCERPT = 400;
+
+const SECRET_PATTERNS: Array<[RegExp, string]> = [
+  [/(\b(?:authorization|proxy-authorization)\s*[:=]\s*)(?:bearer|basic)?\s*[^\s,;]+/gi, "$1[REDACTED]"],
+  [/(\b(?:api[_-]?key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret|cookie|set-cookie)\b\s*[:=]\s*)((?:["'])?)[^\s,;"']+\2/gi, "$1[REDACTED]"],
+  [/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_JWT]"],
+  [/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/gi, "[REDACTED_PRIVATE_KEY]"],
+];
+
+export function redactAndTruncateExcerpt(value, maxLength = MAX_PERSISTED_EXCERPT) {
+  let safe = typeof value === "string" ? value : "";
+  for (const [pattern, replacement] of SECRET_PATTERNS) {
+    safe = safe.replace(pattern, replacement);
+  }
+  return safe.slice(0, maxLength);
+}
 
 export function normalizeWakeStatus(value) {
   return value === "pending" || value === "fired" || value === "cancelled" || value === "expired"
@@ -9,7 +27,7 @@ export function normalizeWakeStatus(value) {
     : "cancelled";
 }
 
-export function normalizeWakeEntry(raw, scopeKey, options = {}) {
+export function normalizeWakeEntry(raw, scopeKey, options: any = {}) {
   if (!raw || typeof raw !== "object") {
     return null;
   }
@@ -20,12 +38,13 @@ export function normalizeWakeEntry(raw, scopeKey, options = {}) {
   if (!wakeAt) {
     return null;
   }
-  const redactedExcerpt =
+  const redactedExcerpt = redactAndTruncateExcerpt(
     typeof entry.redactedExcerpt === "string"
       ? entry.redactedExcerpt
       : typeof entry.sourceExcerpt === "string"
         ? entry.sourceExcerpt
-        : "";
+        : "",
+  );
   const origin = entry.origin === "manual" ? "manual" : "auto";
   return {
     scopeGlob: typeof entry.scopeGlob === "string" && entry.scopeGlob.length > 0 ? entry.scopeGlob : scopeKey,
@@ -50,11 +69,12 @@ export function normalizeWakeEntry(raw, scopeKey, options = {}) {
   };
 }
 
-export function migrateLegacyEntry(legacy, scopeKey, options = {}) {
+export function migrateLegacyEntry(legacy, scopeKey, options: any = {}) {
   const cwd = options.cwd ?? process.cwd();
   const nowIso = options.nowIso ?? new Date().toISOString();
-  const redactedExcerpt = typeof legacy.sourceExcerpt === "string" ? legacy.sourceExcerpt : "";
-  const source = redactedExcerpt.startsWith("provider response 429;") ? "provider-429" : "agent_end";
+  const sourceExcerpt = typeof legacy.sourceExcerpt === "string" ? legacy.sourceExcerpt : "";
+  const source = sourceExcerpt.startsWith("provider response 429;") ? "provider-429" : "agent_end";
+  const redactedExcerpt = redactAndTruncateExcerpt(sourceExcerpt);
   return {
     scopeGlob: scopeKey,
     status: normalizeWakeStatus(legacy.status),
@@ -83,7 +103,7 @@ function looksLikeEntriesRecord(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-export function normalizeState(parsed, options = {}) {
+export function normalizeState(parsed, options: any = {}) {
   if (!parsed || typeof parsed !== "object") {
     return null;
   }
@@ -109,7 +129,7 @@ export function normalizeState(parsed, options = {}) {
   return { version: STATE_VERSION, entries };
 }
 
-export function loadStateFile(statePath, options = {}) {
+export function loadStateFile(statePath, options: any = {}) {
   try {
     const raw = fs.readFileSync(statePath, "utf8");
     return normalizeState(JSON.parse(raw), options);
@@ -120,34 +140,85 @@ export function loadStateFile(statePath, options = {}) {
 
 export function writeStateFile(statePath, state) {
   const tempPath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(state, null, 2), "utf8");
+  const safeState = normalizeState(state) ?? { version: STATE_VERSION, entries: {} };
+  fs.writeFileSync(tempPath, JSON.stringify(safeState, null, 2), "utf8");
   fs.renameSync(tempPath, statePath);
 }
 
-export function withFileLock(lockPath, fn, options = {}) {
+function processIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === "EPERM";
+  }
+}
+
+function reclaimStaleLock(lockPath, staleMs, now) {
+  const reclaimPath = `${lockPath}.reclaim`;
+  let reclaimFd;
+  try {
+    reclaimFd = fs.openSync(reclaimPath, "wx");
+    const raw = fs.readFileSync(lockPath, "utf8");
+    const owner = JSON.parse(raw);
+    if (
+      owner?.hostname !== os.hostname() ||
+      !Number.isSafeInteger(owner.pid) ||
+      typeof owner.createdAtMs !== "number" ||
+      now - owner.createdAtMs < staleMs ||
+      processIsAlive(owner.pid)
+    ) {
+      return false;
+    }
+    fs.rmSync(lockPath);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (reclaimFd !== undefined) fs.closeSync(reclaimFd);
+    fs.rmSync(reclaimPath, { force: true });
+  }
+}
+
+export function withFileLock(lockPath, fn, options: any = {}) {
   const timeoutMs = options.timeoutMs ?? 1_000;
   const waitMs = options.waitMs ?? 25;
-  const deadline = Date.now() + timeoutMs;
+  const staleMs = options.staleMs ?? 30_000;
+  const now = options.now ?? Date.now;
+  const deadline = now() + timeoutMs;
 
   while (true) {
+    let fd;
+    const ownerId = randomUUID();
     try {
-      const fd = fs.openSync(lockPath, "wx");
+      fd = fs.openSync(lockPath, "wx");
+      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, hostname: os.hostname(), createdAtMs: now(), ownerId }), "utf8");
       try {
         return fn();
       } finally {
         fs.closeSync(fd);
-        fs.rmSync(lockPath, { force: true });
+        fd = undefined;
+        try {
+          const owner = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+          if (owner?.ownerId === ownerId) fs.rmSync(lockPath);
+        } catch {
+          // Lock disappeared or changed ownership; never remove another owner's lock.
+        }
       }
     } catch (error) {
-      if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST" || Date.now() >= deadline) {
-        throw error;
+      if (fd !== undefined) fs.closeSync(fd);
+      if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST") throw error;
+      const currentTime = now();
+      if (reclaimStaleLock(lockPath, staleMs, currentTime)) continue;
+      if (currentTime >= deadline) {
+        throw new Error(`Timed out acquiring state lock ${lockPath}; state update was not written`, { cause: error });
       }
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waitMs);
     }
   }
 }
 
-export function updateStateFile(statePath, updater, options = {}) {
+export function updateStateFile(statePath, updater, options: any = {}) {
   const cwd = options.cwd ?? process.cwd();
   const catchallScope = options.catchallScope ?? "*";
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
@@ -180,7 +251,7 @@ export function mergeDetectedWakeEntry(existing, next) {
     origin: "auto",
     wakeAt: next.wakeAt,
     delayMs: next.delayMs,
-    redactedExcerpt: next.redactedExcerpt,
+    redactedExcerpt: redactAndTruncateExcerpt(next.redactedExcerpt),
     source: next.source,
     adapter: next.adapter ?? existing?.adapter,
     humanNotifiedAt: existing?.humanNotifiedAt,

@@ -29,11 +29,12 @@
     "docs:dev": "npm --prefix docs run dev",
     "docs:build": "sh -c '[ -x docs/node_modules/.bin/astro ] || npm --prefix docs ci --no-audit --no-fund; npm --prefix docs run build'",
     "self-check": "node --experimental-strip-types ./scripts/self-check.mjs",
-    "check": "npm run docs:build && npm pack --dry-run"
+    "typecheck": "tsc",
+    "check": "npm run typecheck && npm run docs:build && npm pack --dry-run"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
     "typebox": "*"
   },
@@ -41,5 +42,10 @@
     "extensions": [
       "./extensions"
     ]
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.7",
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2"
   }
 }
