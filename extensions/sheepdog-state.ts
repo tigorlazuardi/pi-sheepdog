@@ -7,8 +7,10 @@ export const STATE_VERSION = 3;
 export const MAX_PERSISTED_EXCERPT = 400;
 
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
+  // ponytail: redact whole cookie header; preserving individual safe cookies is not worth risking session leakage.
+  [/(\b(?:cookie|set-cookie)\s*:\s*)[^\r\n]*/gi, "$1[REDACTED]"],
   [/(\b(?:authorization|proxy-authorization)\s*[:=]\s*)(?:bearer|basic)?\s*[^\s,;]+/gi, "$1[REDACTED]"],
-  [/(\b(?:api[_-]?key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret|cookie|set-cookie)\b\s*[:=]\s*)((?:["'])?)[^\s,;"']+\2/gi, "$1[REDACTED]"],
+  [/(\b(?:api[_-]?key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret)\b\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)/gi, "$1[REDACTED]"],
   [/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_JWT]"],
   [/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/gi, "[REDACTED_PRIVATE_KEY]"],
 ];
@@ -187,6 +189,15 @@ function reclaimStaleLock(lockPath, staleMs, now) {
   }
 }
 
+export class StateLockTimeoutError extends Error {}
+
+export function reportStateLockFailure(error: unknown, operation: string, warn = console.warn): void {
+  if (error instanceof StateLockTimeoutError) {
+    // No exception message: it contains local paths and must not expose source excerpts added by future callers.
+    warn(`[sheepdog] state update skipped: lock timeout (${operation})`);
+  }
+}
+
 export function withFileLock(lockPath, fn, options: any = {}) {
   const timeoutMs = options.timeoutMs ?? 1_000;
   const waitMs = options.waitMs ?? 25;
@@ -218,7 +229,7 @@ export function withFileLock(lockPath, fn, options: any = {}) {
       const currentTime = now();
       if (reclaimStaleLock(lockPath, staleMs, currentTime)) continue;
       if (currentTime >= deadline) {
-        throw new Error(`Timed out acquiring state lock ${lockPath}; state update was not written`, { cause: error });
+        throw new StateLockTimeoutError(`Timed out acquiring state lock ${lockPath}; state update was not written`, { cause: error });
       }
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waitMs);
     }

@@ -45,7 +45,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { loadMapperConfig, resolveMapper, type LoadedMapperConfig } from "./sheepdog-mapper.ts";
-import { loadStateFile, mergeDetectedWakeEntry, redactAndTruncateExcerpt, updateStateFile } from "./sheepdog-state.ts";
+import { loadStateFile, mergeDetectedWakeEntry, redactAndTruncateExcerpt, reportStateLockFailure, updateStateFile } from "./sheepdog-state.ts";
 
 const STATUS_KEY = "sheepdog";
 const LEGACY_STATUS_KEY = "rate-limit-wakeup";
@@ -734,7 +734,8 @@ export default function (pi: ExtensionAPI) {
       setFooterStatus();
       maybeStopTicker();
       pi.sendUserMessage(buildResumeMessage(entry), { deliverAs: "followUp" });
-    } catch {
+    } catch (error) {
+      reportStateLockFailure(error, "fire-wake");
       // fail open: best-effort extension must not throw out of a timer callback.
     }
   }
@@ -842,7 +843,8 @@ export default function (pi: ExtensionAPI) {
           scheduleWake(entry);
         }
       }
-    } catch {
+    } catch (error) {
+      reportStateLockFailure(error, "session-start");
       // fail open
     }
   });
@@ -864,7 +866,8 @@ export default function (pi: ExtensionAPI) {
       }
 
       upsertDetectedState(ctx, parsed, "provider-429");
-    } catch {
+    } catch (error) {
+      reportStateLockFailure(error, "provider-response");
       // fail open
     }
   });
@@ -888,7 +891,8 @@ export default function (pi: ExtensionAPI) {
       }
 
       upsertDetectedState(ctx, parsed, "agent_end");
-    } catch {
+    } catch (error) {
+      reportStateLockFailure(error, "agent-end");
       // fail open
     }
   });

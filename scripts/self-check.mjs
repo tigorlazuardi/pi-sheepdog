@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { loadMapperConfig, resolveMapper } from "../extensions/sheepdog-mapper.ts";
-import { loadStateFile, mergeDetectedWakeEntry, normalizeState, redactAndTruncateExcerpt, updateStateFile, withFileLock } from "../extensions/sheepdog-state.ts";
+import { loadStateFile, mergeDetectedWakeEntry, normalizeState, redactAndTruncateExcerpt, reportStateLockFailure, StateLockTimeoutError, updateStateFile, withFileLock } from "../extensions/sheepdog-state.ts";
 
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
   hour: "2-digit",
@@ -79,10 +79,12 @@ function checkTimeFormatting() {
 
 function checkStateSemantics() {
   const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature";
-  const secrets = `Authorization: Bearer top-secret api_key=sk-live token='tok-value' password=hunter2 jwt=${jwt}`;
+  const cookieSecret = "COOKIE_SECRET_98f5";
+  const quotedSecret = "quoted multiword secret 42";
+  const secrets = `Authorization: Bearer top-secret Cookie: theme=dark; sessionid=${cookieSecret}\napi_key="${quotedSecret}" token='tok-value' password=hunter2 jwt=${jwt}`;
   const safe = redactAndTruncateExcerpt(`${secrets} ${"x".repeat(500)}`);
   assert.equal(safe.length, 400);
-  for (const secret of ["top-secret", "sk-live", "tok-value", "hunter2", jwt]) assert.ok(!safe.includes(secret));
+  for (const secret of ["top-secret", cookieSecret, quotedSecret, "tok-value", "hunter2", jwt]) assert.ok(!safe.includes(secret));
   assert.match(safe, /Authorization: \[REDACTED\]/);
   assert.match(safe, /api_key=\[REDACTED\]/);
 
@@ -98,10 +100,22 @@ function checkStateSemantics() {
     fs.writeFileSync(statePath, JSON.stringify({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", sourceExcerpt: secrets }));
     updateStateFile(statePath, () => undefined, { catchallScope: "*" });
     const persisted = fs.readFileSync(statePath, "utf8");
-    for (const secret of ["top-secret", "sk-live", "tok-value", "hunter2", jwt]) assert.ok(!persisted.includes(secret));
+    for (const secret of ["top-secret", cookieSecret, quotedSecret, "tok-value", "hunter2", jwt]) assert.ok(!persisted.includes(secret));
+
+    updateStateFile(statePath, (state) => {
+      state.entries["*"].redactedExcerpt = secrets;
+    });
+    const rewritten = fs.readFileSync(statePath, "utf8");
+    for (const secret of [cookieSecret, quotedSecret]) assert.ok(!rewritten.includes(secret));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+
+  const warnings = [];
+  reportStateLockFailure(new StateLockTimeoutError("raw path and SECRET must stay hidden"), "self-check", (message) => warnings.push(message));
+  reportStateLockFailure(new Error("unrelated"), "self-check", (message) => warnings.push(message));
+  assert.deepEqual(warnings, ["[sheepdog] state update skipped: lock timeout (self-check)"]);
+  assert.ok(!warnings[0].includes("SECRET"));
 
   const existingManual = {
     scopeGlob: "provider/*",
