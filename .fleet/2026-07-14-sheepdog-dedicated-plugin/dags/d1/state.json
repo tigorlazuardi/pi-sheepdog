@@ -1936,12 +1936,12 @@
       },
       "runtime": {
         "status": "running",
-        "fixAttempt": 0,
+        "fixAttempt": 1,
         "handoverAttempt": 2,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t9",
         "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe",
         "acceptanceResult": "pass",
-        "agentId": "t9-frontier-standards-recovery-1c10879f-94b5-49e3-9962-64b1c4844f89"
+        "agentId": "t9-frontier-spec-6f4ac790-841d-4e81-a0fc-1915973a45af"
       },
       "sync": {
         "mirrored": true,
@@ -1953,10 +1953,13 @@
         "resumeTieBreaker": "fail",
         "resumeTieBreakerAt": "2026-07-15T01:15:24Z",
         "resumeTieBreakerSummary": "stale frontier handover had no task commit; fresh frontier recovery spawned",
-        "lastVerdict": "HANDOVER",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-implementer-2-handover.md",
+        "lastVerdict": "ESCALATE",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-frontier-standards-direct-02b3639.md",
         "acceptanceVerification": "npm run self-check -- redaction && npm run check passed",
-        "acceptanceVerifiedAt": "2026-07-15T01:18:52Z"
+        "acceptanceVerifiedAt": "2026-07-15T01:18:52Z",
+        "escalationReason": "Low-tolerance secrets/redaction diff requires frontier escalation.",
+        "escalationAt": "2026-07-15T01:25:27Z",
+        "frontierReviewDisposition": "frontier-standards-escalated"
       },
       "audit": [
         {
@@ -2041,17 +2044,21 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t9-frontier-standards-34ab9535-bc72-4c20-8a0a-bf00cfb9593b",
           "startedAt": "2026-07-15T01:18:52Z",
-          "endedAt": "2026-07-15T01:19:08Z",
-          "status": "error",
-          "error": "relay disconnected before verdict; fresh frontier standards review required",
-          "summary": "Relay disconnected before frontier standards verdict; review will restart fresh.",
+          "endedAt": "2026-07-15T01:23:37Z",
+          "status": "ok",
+          "error": null,
+          "summary": "NO-GO: debug sink still permits credential leakage through raw config-warning values and incomplete recursive key/value recognition. Existing debug log permissions also remain unsafe because append `mode: 0o600` affects creation only.",
           "attributes": {
             "class": "frontier",
             "axis": "standards",
             "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe",
-            "acceptanceResult": "pass"
+            "acceptanceResult": "pass",
+            "verdict": "ESCALATE",
+            "lowTolerance": "debug-logging/redaction",
+            "findingCount": "2",
+            "tokens": "unavailable"
           },
-          "reportRef": null
+          "reportRef": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-9"
         },
         {
           "role": "reviewer",
@@ -2078,16 +2085,75 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t9-frontier-standards-recovery-1c10879f-94b5-49e3-9962-64b1c4844f89",
           "startedAt": "2026-07-15T01:21:16Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T01:25:27Z",
           "status": "ok",
           "error": null,
-          "summary": "Fresh direct frontier standards review spawned for Ticket 9.",
+          "summary": "Low-tolerance secrets/redaction diff requires frontier escalation. Bare credentials, password-bearing URLs, and unsafe existing log permissions remain leak paths.",
           "attributes": {
             "class": "frontier",
             "axis": "standards",
             "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe",
             "acceptanceResult": "pass",
-            "recovery": "relay"
+            "recovery": "relay",
+            "verdict": "ESCALATE",
+            "tokens": "12336"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-frontier-standards-direct-02b3639.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-fix-49dc09f8-68c2-40a7-9764-bb81e50ffad2",
+          "startedAt": "2026-07-15T01:23:10Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Fresh frontier worker spawned to remediate Ticket 9 standards privacy findings.",
+          "attributes": {
+            "class": "frontier",
+            "resume": "review-fix",
+            "fixAttempt": "1",
+            "reviewAxis": "standards",
+            "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-reviewer-standards-1.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-fix-5afe9a6e-0f26-4a05-8d78-c6f2126f92cf",
+          "startedAt": "2026-07-15T01:23:37Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Frontier remediation implementer spawned for Ticket 9.",
+          "attributes": {
+            "class": "frontier",
+            "resume": "review-fix",
+            "fixAttempt": "1",
+            "reviewAxis": "standards",
+            "escalated": "true"
+          },
+          "reportRef": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-9"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-spec-6f4ac790-841d-4e81-a0fc-1915973a45af",
+          "startedAt": "2026-07-15T01:25:27Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Fresh frontier spec review spawned after direct frontier standards escalation.",
+          "attributes": {
+            "class": "frontier",
+            "axis": "spec",
+            "commitSha": "02b3639fd924e81e003d65c30c631bbd0e2d67fe",
+            "acceptanceResult": "pass",
+            "priorReviewRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t9-frontier-standards-direct-02b3639.md"
           },
           "reportRef": null
         }
