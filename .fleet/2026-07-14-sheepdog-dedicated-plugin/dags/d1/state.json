@@ -1941,13 +1941,15 @@
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t9",
         "commitSha": null,
         "acceptanceResult": null,
-        "agentId": "t9-frontier-worker-2e7c4b6f-c374-45b5-8895-84c8cfd4afe0"
+        "agentId": "spawn-t9-frontier-worker-b96a5c2b-9a41-430c-b57e-16cf42cc3b4e"
       },
       "sync": {
-        "mirrored": false,
+        "mirrored": true,
         "pushed": false
       },
-      "attributes": {},
+      "attributes": {
+        "fixedPoint": "509fa4b0fb4123ed26b34cc0c1094963a198537d"
+      },
       "audit": [
         {
           "role": "worker",
@@ -1962,6 +1964,23 @@
           "attributes": {
             "class": "frontier",
             "attempt": "1"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "spawn-t9-frontier-worker-b96a5c2b-9a41-430c-b57e-16cf42cc3b4e",
+          "startedAt": "2026-07-15T01:12:01Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Frontier implementer spawned for Ticket 9.",
+          "attributes": {
+            "class": "frontier",
+            "attempt": "1",
+            "fixedPoint": "509fa4b0fb4123ed26b34cc0c1094963a198537d"
           },
           "reportRef": null
         }
