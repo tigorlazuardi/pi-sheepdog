@@ -155,28 +155,35 @@ function processIsAlive(pid) {
 }
 
 function reclaimStaleLock(lockPath, staleMs, now) {
-  const reclaimPath = `${lockPath}.reclaim`;
-  let reclaimFd;
+  let owner;
   try {
-    reclaimFd = fs.openSync(reclaimPath, "wx");
-    const raw = fs.readFileSync(lockPath, "utf8");
-    const owner = JSON.parse(raw);
-    if (
-      owner?.hostname !== os.hostname() ||
+    owner = JSON.parse(fs.readFileSync(path.join(lockPath, "owner.json"), "utf8"));
+  } catch {
+    try {
+      if (now - fs.statSync(lockPath).mtimeMs < staleMs) return false;
+    } catch {
+      return false;
+    }
+  }
+  if (
+    owner &&
+    (owner.hostname !== os.hostname() ||
       !Number.isSafeInteger(owner.pid) ||
       typeof owner.createdAtMs !== "number" ||
       now - owner.createdAtMs < staleMs ||
-      processIsAlive(owner.pid)
-    ) {
-      return false;
-    }
-    fs.rmSync(lockPath);
+      processIsAlive(owner.pid))
+  ) {
+    return false;
+  }
+
+  const claimPath = `${lockPath}.reclaim.${randomUUID()}`;
+  try {
+    // ponytail: directory rename atomically elects one reclaimer; add heartbeat if writes exceed staleMs.
+    fs.renameSync(lockPath, claimPath);
+    fs.rmSync(claimPath, { recursive: true });
     return true;
   } catch {
     return false;
-  } finally {
-    if (reclaimFd !== undefined) fs.closeSync(reclaimFd);
-    fs.rmSync(reclaimPath, { force: true });
   }
 }
 
@@ -188,25 +195,25 @@ export function withFileLock(lockPath, fn, options: any = {}) {
   const deadline = now() + timeoutMs;
 
   while (true) {
-    let fd;
     const ownerId = randomUUID();
     try {
-      fd = fs.openSync(lockPath, "wx");
-      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, hostname: os.hostname(), createdAtMs: now(), ownerId }), "utf8");
+      fs.mkdirSync(lockPath);
       try {
+        fs.writeFileSync(
+          path.join(lockPath, "owner.json"),
+          JSON.stringify({ pid: process.pid, hostname: os.hostname(), createdAtMs: now(), ownerId }),
+          "utf8",
+        );
         return fn();
       } finally {
-        fs.closeSync(fd);
-        fd = undefined;
         try {
-          const owner = JSON.parse(fs.readFileSync(lockPath, "utf8"));
-          if (owner?.ownerId === ownerId) fs.rmSync(lockPath);
+          const owner = JSON.parse(fs.readFileSync(path.join(lockPath, "owner.json"), "utf8"));
+          if (owner?.ownerId === ownerId) fs.rmSync(lockPath, { recursive: true });
         } catch {
           // Lock disappeared or changed ownership; never remove another owner's lock.
         }
       }
     } catch (error) {
-      if (fd !== undefined) fs.closeSync(fd);
       if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST") throw error;
       const currentTime = now();
       if (reclaimStaleLock(lockPath, staleMs, currentTime)) continue;

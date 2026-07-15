@@ -92,6 +92,17 @@ function checkStateSemantics() {
   assert.equal(migrated.entries["*"].source, "provider-429");
   assert.equal(migrated.entries["*"].originalSource, undefined);
 
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sheepdog-redaction-check-"));
+  try {
+    const statePath = path.join(root, "state.json");
+    fs.writeFileSync(statePath, JSON.stringify({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", sourceExcerpt: secrets }));
+    updateStateFile(statePath, () => undefined, { catchallScope: "*" });
+    const persisted = fs.readFileSync(statePath, "utf8");
+    for (const secret of ["top-secret", "sk-live", "tok-value", "hunter2", jwt]) assert.ok(!persisted.includes(secret));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+
   const existingManual = {
     scopeGlob: "provider/*",
     status: "pending",
@@ -166,14 +177,28 @@ function checkLockRecovery() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sheepdog-lock-check-"));
   const lockPath = path.join(root, "state.json.lock");
   try {
-    fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, hostname: os.hostname(), createdAtMs: 0, ownerId: "live" }));
+    const writeLock = (owner) => {
+      fs.mkdirSync(lockPath, { recursive: true });
+      fs.writeFileSync(path.join(lockPath, "owner.json"), JSON.stringify(owner));
+    };
+    const readLock = () => JSON.parse(fs.readFileSync(path.join(lockPath, "owner.json"), "utf8"));
+
+    writeLock({ pid: process.pid, hostname: os.hostname(), createdAtMs: 0, ownerId: "live" });
     assert.throws(
       () => withFileLock(lockPath, () => assert.fail("live lock entered"), { timeoutMs: 0, staleMs: 1, waitMs: 1 }),
       /Timed out acquiring state lock/,
     );
-    assert.equal(JSON.parse(fs.readFileSync(lockPath, "utf8")).ownerId, "live");
+    assert.equal(readLock().ownerId, "live");
+    assert.throws(
+      () => updateStateFile(path.join(root, "state.json"), () => assert.fail("locked update entered"), {
+        lockOptions: { timeoutMs: 0, staleMs: 1, waitMs: 1 },
+      }),
+      /state update was not written/,
+    );
+    assert.equal(readLock().ownerId, "live");
 
-    fs.writeFileSync(lockPath, JSON.stringify({ pid: 2_147_483_647, hostname: os.hostname(), createdAtMs: 0, ownerId: "dead" }));
+    fs.rmSync(lockPath, { recursive: true });
+    writeLock({ pid: 2_147_483_647, hostname: os.hostname(), createdAtMs: 0, ownerId: "dead" });
     assert.equal(withFileLock(lockPath, () => "recovered", { timeoutMs: 50, staleMs: 1, waitMs: 1 }), "recovered");
     assert.ok(!fs.existsSync(lockPath));
   } finally {
