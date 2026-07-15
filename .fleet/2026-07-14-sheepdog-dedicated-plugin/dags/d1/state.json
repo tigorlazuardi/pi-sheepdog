@@ -552,13 +552,13 @@
         "checkCommand": "npm run self-check -- state && npm run check"
       },
       "runtime": {
-        "status": "running",
-        "fixAttempt": 5,
+        "status": "failed",
+        "fixAttempt": 6,
         "handoverAttempt": 3,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t5",
         "commitSha": "af9254e9987f041100fef3c45d80a2549c849b6d",
-        "acceptanceResult": "pass",
-        "agentId": "t5-frontier-spec-recover-991b5709-9a5a-4f0e-b6b9-6036832ddf50"
+        "acceptanceResult": "fail",
+        "agentId": null
       },
       "sync": {
         "mirrored": true,
@@ -566,14 +566,14 @@
       },
       "attributes": {
         "fixedPoint": "6d81856193896e6a0135a503d0dfef03b725c1ec",
-        "lastVerdict": "PASS",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-standards-2.md",
+        "lastVerdict": "FAIL",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-spec-af9254e-a84610f4.md",
         "resumeTieBreaker": "fail",
         "resumeTieBreakerAt": "2026-07-15T00:00:00Z",
         "resumeTieBreakerSummary": "Task worktree has viable uncommitted TypeScript migration but required check fails because self-check imports removed .js module; recover implementation.",
         "lastWorkerCommitSha": "8bc5a3e00727b5bc972def89ce86522faad82b82",
         "staleRecovery": "t5-typescript-rename-recovered",
-        "failureReason": "HIGH: raw provider errors and legacy excerpts persist without secret redaction; orphan lock files permanently disable state writes; v2 manual wakes normalize as automatic and lose sticky override semantics.",
+        "failureReason": "Final frontier spec review failed: JSON-form API keys/tokens can persist unredacted.",
         "mergeState": "merged",
         "mergeStartedAt": "2026-07-14T23:36:43Z",
         "mergeConflictAt": "2026-07-14T23:41:57Z",
@@ -585,8 +585,8 @@
         "dagBranchPushedAt": "2026-07-15T00:12:00Z",
         "dagBranchDurability": "recorded",
         "staleResolverRecovery": "actual integration merge commit 4ee7171 present; stale resolver superseded",
-        "escalationReason": "standards reviewer identified state schema/migration surface",
-        "escalationAt": "2026-07-14T23:44:04Z",
+        "escalationReason": "frontier spec review: v2 manual wake sticky protection and persisted-secret redaction surface",
+        "escalationAt": "2026-07-15T00:16:00Z",
         "stalePreFixVerdict": "3ceea0b9 FAIL superseded pending fresh frontier review",
         "stalePreFixVerdictAt": "2026-07-14T23:52:29Z",
         "remediationCommit": "8bc5a3e00727b5bc972def89ce86522faad82b82",
@@ -1386,17 +1386,20 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "pending-t5-frontier-spec-af9254e",
           "startedAt": "2026-07-15T00:12:00Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T00:16:00Z",
           "status": "ok",
           "error": null,
-          "summary": "Fresh frontier spec review spawned for final t5 remediation.",
+          "summary": "Required check passed, but v2 manual wakes normalize as automatic and lose sticky protection. Diff also touches persisted-secret redaction, requiring frontier escalation.",
           "attributes": {
             "axis": "spec",
             "class": "frontier",
             "commitSha": "af9254e9987f041100fef3c45d80a2549c849b6d",
-            "checkCommand": "npm run self-check -- state && npm run check"
+            "checkCommand": "npm run self-check -- state && npm run check",
+            "verdict": "ESCALATE",
+            "acceptanceResult": "pass",
+            "tokens": "15961"
           },
-          "reportRef": null
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-spec-final.md"
         },
         {
           "role": "reviewer",
@@ -1404,17 +1407,39 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t5-frontier-spec-recover-991b5709-9a5a-4f0e-b6b9-6036832ddf50",
           "startedAt": "2026-07-15T00:30:59Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T00:34:01Z",
           "status": "ok",
           "error": null,
-          "summary": "Recovered fresh frontier spec review for final remediation commit.",
+          "summary": "Ticket 5 core state semantics fit spec, but JSON-form API keys/tokens remain unredacted and can persist into state/follow-up messages. Required state self-check passed; npm run check failed with TS2688 because target worktree dependencies were absent.",
           "attributes": {
             "axis": "spec",
             "class": "frontier",
             "commitSha": "af9254e9987f041100fef3c45d80a2549c849b6d",
-            "recovery": "relay-disconnect"
+            "recovery": "relay-disconnect",
+            "verdict": "FAIL",
+            "acceptanceResult": "FAIL",
+            "tokens": "7860"
           },
-          "reportRef": null
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-frontier-spec-af9254e-a84610f4.md"
+        },
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "pending-t5-final-spec-fix",
+          "startedAt": "2026-07-15T00:16:00Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Frontier worker spawned to fix final t5 frontier spec findings.",
+          "attributes": {
+            "class": "frontier",
+            "resume": "review-fix",
+            "fixAttempt": "6",
+            "reviewAxis": "spec",
+            "escalated": "true"
+          },
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t5-reviewer-spec-final.md"
         }
       ]
     },
