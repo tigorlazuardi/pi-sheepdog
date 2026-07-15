@@ -1561,13 +1561,13 @@
         "checkCommand": "npm run self-check -- detection && npm run check"
       },
       "runtime": {
-        "status": "running",
+        "status": "passed",
         "fixAttempt": 2,
         "handoverAttempt": 0,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t4",
         "commitSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d",
         "acceptanceResult": "pass",
-        "agentId": "spawn-t4-frontier-spec-retry-b76b0287-b3cb-4344-b99c-3730b1a2a96b"
+        "agentId": null
       },
       "sync": {
         "mirrored": true,
@@ -1577,13 +1577,17 @@
         "reconciledAt": "2026-07-15T00:01:00Z",
         "reconciliation": "premature dispatch invalidated; no viable work beyond integration base",
         "blockedBy": null,
-        "lastVerdict": "FAIL",
-        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-frontier-spec-recovery-429bc0f.md",
+        "lastVerdict": "PASS",
+        "lastReportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-reviewer-spec-2.md",
         "blockedReason": null,
         "effectiveTier": "frontier",
         "reactivatedAt": "2026-07-15T00:54:51Z",
         "staleReviewerRecovery": "bounded-direct-frontier-spec",
-        "staleReviewerRecoveryAt": "2026-07-15T01:03:01Z"
+        "staleReviewerRecoveryAt": "2026-07-15T01:03:01Z",
+        "mergeState": "merged",
+        "dagBranchSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d",
+        "dagBranchPushedAt": "2026-07-15T01:11:51Z",
+        "dagBranchDurability": "recorded"
       },
       "audit": [
         {
@@ -1819,16 +1823,18 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "t4-frontier-standards-0ca169b7-8ff3-4d1e-a815-ed19348aca4a",
           "startedAt": "2026-07-15T01:07:33Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T01:09:04Z",
           "status": "ok",
           "error": null,
-          "summary": "Frontier standards review spawned after spec fix.",
+          "summary": "No standards findings. Non-generic adapters preserve valid RFC Retry-After HTTP-dates while blocking ambiguous merged numeric values. stop-generic UI warning exposes only controlled adapter/reason text; no raw headers or secrets.",
           "attributes": {
             "axis": "standards",
             "class": "frontier",
-            "commitSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d"
+            "commitSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d",
+            "verdict": "PASS",
+            "tokens": "unavailable"
           },
-          "reportRef": null
+          "reportRef": "extensions/sheepdog-detector.ts:258-290; extensions/sheepdog.ts:615-654; scripts/self-check.mjs:50-65"
         },
         {
           "role": "reviewer",
@@ -1836,17 +1842,78 @@
           "model": "cx/gpt-5.6-sol",
           "agentId": "spawn-t4-frontier-spec-retry-b76b0287-b3cb-4344-b99c-3730b1a2a96b",
           "startedAt": "2026-07-15T01:09:03Z",
-          "endedAt": null,
+          "endedAt": "2026-07-15T01:11:51Z",
           "status": "ok",
           "error": null,
-          "summary": "Frontier spec review spawned after standards PASS.",
+          "summary": "Ticket 4 sesuai spec; temuan attempt 1 sudah diperbaiki dan seluruh acceptance check lulus.",
           "attributes": {
             "axis": "spec",
             "class": "frontier",
             "commitSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d",
-            "checkCommand": "npm run self-check -- detection && npm run check"
+            "checkCommand": "npm run self-check -- detection && npm run check",
+            "verdict": "PASS",
+            "acceptanceResult": "pass",
+            "attempt": "2"
           },
-          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-implementer-2.md"
+          "reportRef": ".fleet/2026-07-14-sheepdog-dedicated-plugin/notes/t4-reviewer-spec-2.md"
+        },
+        {
+          "role": "reviewer",
+          "agentType": "codex-frontier-reviewer",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t4-frontier-spec-final-5b708856-5bac-4734-a1e7-72aa64a5d719",
+          "startedAt": "2026-07-15T01:09:04Z",
+          "endedAt": "2026-07-15T01:10:54Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Ticket 4 fully matches spec after fix. Ordered detector outcomes preserved; generic text requires indicator plus duration; adapter blocks ambiguous headers; RFC Retry-After dates remain valid; source metadata and redacted/truncated excerpts preserved; no fetch monkeypatch or body parsing. Required detection self-check and full check passed.",
+          "attributes": {
+            "axis": "spec",
+            "class": "frontier",
+            "commitSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d",
+            "checkCommand": "npm run self-check -- detection && npm run check",
+            "verdict": "PASS",
+            "acceptanceResult": "PASS: detection self-check, typecheck, docs build, and npm pack dry-run passed",
+            "tokens": "16240"
+          },
+          "reportRef": "plans/sheepdog-dedicated-plugin/TICKETS.mdx#ticket-4"
+        },
+        {
+          "role": "orchestrator",
+          "agentType": "codex-fleet-orchestrator",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "orchestrator",
+          "startedAt": "2026-07-15T01:10:57Z",
+          "endedAt": "2026-07-15T01:10:57Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Merged t4 cleanly into DAG branch and pushed integration ref.",
+          "attributes": {
+            "action": "merge",
+            "result": "merged",
+            "dagBranchSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d"
+          },
+          "reportRef": null
+        },
+        {
+          "role": "orchestrator",
+          "agentType": "codex-fleet-orchestrator",
+          "model": "cx/gpt-5.6-terra",
+          "agentId": "orchestrator",
+          "startedAt": "2026-07-15T01:11:51Z",
+          "endedAt": "2026-07-15T01:11:51Z",
+          "status": "ok",
+          "error": null,
+          "summary": "Merged t4 into DAG branch and pushed integration ref.",
+          "attributes": {
+            "action": "merge",
+            "result": "merged",
+            "task": "t4",
+            "dag": "d1",
+            "sourceCommit": "509fa4b0fb4123ed26b34cc0c1094963a198537d",
+            "dagBranchSha": "509fa4b0fb4123ed26b34cc0c1094963a198537d"
+          },
+          "reportRef": null
         }
       ]
     },
@@ -1868,20 +1935,37 @@
         "checkCommand": "npm run self-check -- redaction && npm run check"
       },
       "runtime": {
-        "status": "pending",
+        "status": "running",
         "fixAttempt": 0,
         "handoverAttempt": 0,
         "branch": "fleet/2026-07-14-sheepdog-dedicated-plugin/task/d1/t9",
         "commitSha": null,
         "acceptanceResult": null,
-        "agentId": null
+        "agentId": "t9-frontier-worker-2e7c4b6f-c374-45b5-8895-84c8cfd4afe0"
       },
       "sync": {
         "mirrored": false,
         "pushed": false
       },
       "attributes": {},
-      "audit": []
+      "audit": [
+        {
+          "role": "worker",
+          "agentType": "codex-frontier-worker",
+          "model": "cx/gpt-5.6-sol",
+          "agentId": "t9-frontier-worker-2e7c4b6f-c374-45b5-8895-84c8cfd4afe0",
+          "startedAt": "2026-07-15T01:11:07Z",
+          "endedAt": null,
+          "status": "ok",
+          "error": null,
+          "summary": "Frontier implementer spawned.",
+          "attributes": {
+            "class": "frontier",
+            "attempt": "1"
+          },
+          "reportRef": null
+        }
+      ]
     },
     {
       "id": "t12",
