@@ -68,14 +68,14 @@ export function loadMapperConfig(parsed: unknown, home: string): LoadedMapperCon
       return;
     }
     if (!ADAPTER_IDS.has(rule.adapter as AdapterId)) {
-      warnings.push(`${label}: unknown adapter ${rule.adapter}`);
+      warnings.push(`${label}: unknown adapter`);
       return;
     }
     let regex: RegExp;
     try {
       regex = new RegExp(rule.match);
-    } catch (error) {
-      warnings.push(`${label}: invalid regex ${rule.match} (${error instanceof Error ? error.message : "error"})`);
+    } catch {
+      warnings.push(`${label}: invalid match regex`);
       return;
     }
     const adapter = rule.adapter as AdapterId;

@@ -10,6 +10,14 @@ const SENSITIVE_KEY = "(?:authorization|proxy[_-]?authorization|authentication|a
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
   // Remove multiline credentials before line-oriented header redaction can consume only their opening marker.
   [/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/gi, "[REDACTED_PRIVATE_KEY]"],
+  // URL userinfo can contain proxy credentials even when the surrounding field is otherwise safe (for example baseUrl).
+  [/\b(https?:\/\/)[^\s/@:]+:[^\s/]+@/gi, "$1[REDACTED]@"],
+  // Common standalone credential forms lack a label, so assignment-only redaction cannot catch them.
+  [/\bgithub_pat_[A-Za-z0-9_]{20,}\b/g, "[REDACTED_GITHUB_TOKEN]"],
+  [/\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, "[REDACTED_GITHUB_TOKEN]"],
+  [/\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g, "[REDACTED_AWS_ACCESS_KEY]"],
+  [/\bsk-ant-[A-Za-z0-9_-]{20,}\b/g, "[REDACTED_ANTHROPIC_KEY]"],
+  [/\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,}\b/g, "[REDACTED_OPENAI_KEY]"],
   // Match JSON plus JSON-escaped fragments such as {\"api_key\":\"secret\"}.
   [new RegExp(`(\\b${SENSITIVE_KEY}\\b(?:\\\\*["'])?\\s*[:=]\\s*)((?:\\\\*)["']).*?\\2`, "gi"), "$1[REDACTED]"],
   [/(\b(?:cookie|set-cookie)\b(?:\\*["'])?\s*:\s*)((?:\\*)["']).*?\2/gi, "$1[REDACTED]"],

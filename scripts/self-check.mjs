@@ -102,34 +102,58 @@ function checkRedaction() {
   const debugPath = path.join(root, "debug.log");
   const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature";
   const privateKey = "-----BEGIN PRIVATE KEY-----\ncredential-contents\n-----END PRIVATE KEY-----";
-  const payload = `Authorization: Bearer auth-secret Cookie: sid=cookie-secret api_key=key-secret token=token-secret password=password-secret secret=generic-secret jwt=${jwt} ${privateKey} ${"provider-payload-".repeat(80)}`;
-  const forbidden = ["auth-secret", "cookie-secret", "key-secret", "token-secret", "password-secret", "generic-secret", jwt, "credential-contents", "/home/alice/.credentials.json", "/home/alice/.config", "adapter-token"];
+  const standaloneSecrets = [
+    "github_pat_11AA22BB33CC44DD55EE66FF77GG88HH",
+    "ghp_11AA22BB33CC44DD55EE66FF77GG88HH",
+    "AKIAIOSFODNN7EXAMPLE",
+    "sk-ant-api03-11AA22BB33CC44DD55EE66FF77GG88HH",
+    "sk-proj-11AA22BB33CC44DD55EE66FF77GG88HH",
+  ];
+  const urlPassword = "proxy-password-secret";
+  const payload = `Authorization: Bearer auth-secret Cookie: sid=cookie-secret api_key=key-secret token=token-secret password=password-secret secret=generic-secret jwt=${jwt} ${privateKey} ${standaloneSecrets.join(" ")} ${"provider-payload-".repeat(80)}`;
+  const forbidden = ["auth-secret", "cookie-secret", "key-secret", "token-secret", "password-secret", "generic-secret", jwt, "credential-contents", "/home/alice/.credentials.json", "/home/alice/.config", "adapter-token", urlPassword, ...standaloneSecrets];
 
   try {
+    fs.writeFileSync(debugPath, "", { mode: 0o644 });
+    fs.chmodSync(debugPath, 0o644);
     appendDebugEvent(debugPath, "detection_matched", {
       excerpt: payload,
+      standaloneTokens: standaloneSecrets,
       authorization: "Bearer nested-auth",
       credentialFile: "/home/alice/.credentials.json",
       configDir: "/home/alice/.config",
       credentialContents: "credential-file-secret",
       args: {
         token: "adapter-token",
-        baseUrl: "https://api.example.test",
+        baseUrl: `https://proxy-user:${urlPassword}@api.example.test`,
         nested: [{ headers: { "X-API-Key": "nested-api-key", cookie: "nested-cookie" } }],
       },
       private_key: "nested-private-key",
+      githubToken: "github-field-secret",
+      credentials: { username: "alice", password: "credential-password" },
+      privateKeyPem: "pem-field-secret",
     }, new Date("2026-07-15T00:00:00.000Z"));
     const raw = fs.readFileSync(debugPath, "utf8");
     const event = JSON.parse(raw.trim());
-    for (const secret of [...forbidden, "nested-auth", "credential-file-secret", "nested-api-key", "nested-cookie", "nested-private-key"]) assert.ok(!raw.includes(secret), `debug log leaked ${secret}`);
+    for (const secret of [...forbidden, "nested-auth", "credential-file-secret", "nested-api-key", "nested-cookie", "nested-private-key", "github-field-secret", "alice", "credential-password", "pem-field-secret"]) assert.ok(!raw.includes(secret), `debug log leaked ${secret}`);
     assert.equal(event.event, "detection_matched");
     assert.equal(event.timestamp, "2026-07-15T00:00:00.000Z");
+    assert.deepEqual(event.standaloneTokens, [
+      "[REDACTED_GITHUB_TOKEN]",
+      "[REDACTED_GITHUB_TOKEN]",
+      "[REDACTED_AWS_ACCESS_KEY]",
+      "[REDACTED_ANTHROPIC_KEY]",
+      "[REDACTED_OPENAI_KEY]",
+    ]);
     assert.equal(event.authorization, "[REDACTED]");
     assert.equal(event.credentialFile, "[REDACTED]");
     assert.equal(event.args.token, "[REDACTED]");
     assert.equal(event.args.nested[0].headers["X-API-Key"], "[REDACTED]");
     assert.equal(event.private_key, "[REDACTED]");
-    assert.equal(event.args.baseUrl, "https://api.example.test");
+    assert.equal(event.githubToken, "[REDACTED]");
+    assert.equal(event.credentials, "[REDACTED]");
+    assert.equal(event.privateKeyPem, "[REDACTED]");
+    assert.equal(event.args.baseUrl, "https://[REDACTED]@api.example.test");
     assert.ok(event.excerpt.length <= 400);
     assert.equal(raw.split("\n").filter(Boolean).length, 1);
     assert.equal(fs.statSync(debugPath).mode & 0o777, 0o600);
