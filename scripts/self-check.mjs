@@ -3,7 +3,8 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { loadStateFile, mergeDetectedWakeEntry, normalizeState, updateStateFile } from "../extensions/sheepdog-state.ts";
+import { loadMapperConfig, resolveMapper } from "../extensions/sheepdog-mapper.ts";
+import { loadStateFile, mergeDetectedWakeEntry, normalizeState, redactAndTruncateExcerpt, reportStateLockFailure, StateLockTimeoutError, updateStateFile, withFileLock } from "../extensions/sheepdog-state.ts";
 
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
   hour: "2-digit",
@@ -45,64 +46,6 @@ function formatLocalWakeTime(date, now = new Date()) {
   return `${MONTH_DAY_YEAR_FORMAT.format(date)} ${time}`;
 }
 
-const ADAPTER_IDS = new Set(["generic", "anthropic", "openai-compatible"]);
-const ANTHROPIC_ARG_NAMES = new Set(["credentialFile", "configDir", "baseUrl"]);
-const PATH_ARG_NAMES = new Set(["credentialFile", "configDir"]);
-
-function computeScopeGlob(modelRef) {
-  const lastSlash = modelRef?.lastIndexOf("/") ?? -1;
-  return lastSlash === -1 ? undefined : `${modelRef.slice(0, lastSlash)}/*`;
-}
-
-function expandPathValue(value, home) {
-  if (value === "$HOME") return home;
-  if (value.startsWith("$HOME/")) return `${home}/${value.slice(6)}`;
-  if (value === "~") return home;
-  if (value.startsWith("~/")) return `${home}/${value.slice(2)}`;
-  return value;
-}
-
-function validateArgs(adapter, rawArgs, home) {
-  if (rawArgs === undefined) return { args: {} };
-  if (!rawArgs || typeof rawArgs !== "object" || Array.isArray(rawArgs)) return { warning: "args" };
-  const args = {};
-  for (const [key, value] of Object.entries(rawArgs)) {
-    if (adapter !== "anthropic" || !ANTHROPIC_ARG_NAMES.has(key)) return { warning: key };
-    if (typeof value !== "string" || value.length === 0) return { warning: key };
-    args[key] = PATH_ARG_NAMES.has(key) ? expandPathValue(value, home) : value;
-  }
-  return { args };
-}
-
-function loadMapperConfig(parsed, home = "/home/alice") {
-  const warnings = [];
-  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.mappers)) return { rules: [], warnings: ["mappers"] };
-  const rules = [];
-  parsed.mappers.forEach((rule, index) => {
-    if (!rule || typeof rule !== "object") return warnings.push(`mappers[${index}]`);
-    if (typeof rule.match !== "string" || typeof rule.adapter !== "string" || typeof rule.scope !== "string") return warnings.push(`mappers[${index}]`);
-    if (!ADAPTER_IDS.has(rule.adapter)) return warnings.push(`adapter ${rule.adapter}`);
-    let regex;
-    try {
-      regex = new RegExp(rule.match);
-    } catch {
-      warnings.push(`regex ${index}`);
-      return;
-    }
-    const { args, warning } = validateArgs(rule.adapter, rule.args, home);
-    if (warning) return warnings.push(`args ${warning}`);
-    rules.push({ regex, adapter: rule.adapter, scope: rule.scope, args });
-  });
-  return { rules, warnings };
-}
-
-function resolveMapper(modelRef, config) {
-  for (const rule of config.rules) {
-    if (rule.regex.test(modelRef)) return { adapter: rule.adapter, scopeGlob: rule.scope, args: rule.args };
-  }
-  return { adapter: "generic", scopeGlob: computeScopeGlob(modelRef) ?? "*", args: {} };
-}
-
 function checkMapperConfig() {
   const config = loadMapperConfig({
     mappers: [
@@ -112,7 +55,7 @@ function checkMapperConfig() {
       { match: "^openrouter/anthropic/(.+)$", adapter: "anthropic", scope: "openrouter/anthropic/*", args: { credentialFile: "$HOME/.claude/.credentials.json", configDir: "~/.claude", baseUrl: "https://api.anthropic.com" } },
       { match: "^openrouter/anthropic/special$", adapter: "generic", scope: "later/*" },
     ],
-  });
+  }, "/home/alice");
   assert.equal(config.rules.length, 2);
   assert.equal(config.warnings.length, 3);
   const match = resolveMapper("openrouter/anthropic/claude-sonnet-5", config);
@@ -135,10 +78,44 @@ function checkTimeFormatting() {
 
 
 function checkStateSemantics() {
-  const migrated = normalizeState({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", delayMs: 120000, sourceExcerpt: "provider response 429; retry-after=60" }, { catchallScope: "*" });
+  const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature";
+  const cookieSecret = "COOKIE_SECRET_98f5";
+  const quotedSecret = "quoted multiword secret 42";
+  const secrets = `Authorization: Bearer top-secret Cookie: theme=dark; sessionid=${cookieSecret}\napi_key="${quotedSecret}" token='tok-value' password=hunter2 jwt=${jwt}`;
+  const safe = redactAndTruncateExcerpt(`${secrets} ${"x".repeat(500)}`);
+  assert.equal(safe.length, 400);
+  for (const secret of ["top-secret", cookieSecret, quotedSecret, "tok-value", "hunter2", jwt]) assert.ok(!safe.includes(secret));
+  assert.match(safe, /Authorization: \[REDACTED\]/);
+  assert.match(safe, /api_key=\[REDACTED\]/);
+
+  const migrated = normalizeState({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", delayMs: 120000, sourceExcerpt: `provider response 429; ${secrets}` }, { catchallScope: "*" });
   assert.equal(migrated.version, 3);
-  assert.equal(migrated.entries["*"].redactedExcerpt, "provider response 429; retry-after=60");
+  assert.ok(!migrated.entries["*"].redactedExcerpt.includes("top-secret"));
+  assert.equal(migrated.entries["*"].source, "provider-429");
   assert.equal(migrated.entries["*"].originalSource, undefined);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sheepdog-redaction-check-"));
+  try {
+    const statePath = path.join(root, "state.json");
+    fs.writeFileSync(statePath, JSON.stringify({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", sourceExcerpt: secrets }));
+    updateStateFile(statePath, () => undefined, { catchallScope: "*" });
+    const persisted = fs.readFileSync(statePath, "utf8");
+    for (const secret of ["top-secret", cookieSecret, quotedSecret, "tok-value", "hunter2", jwt]) assert.ok(!persisted.includes(secret));
+
+    updateStateFile(statePath, (state) => {
+      state.entries["*"].redactedExcerpt = secrets;
+    });
+    const rewritten = fs.readFileSync(statePath, "utf8");
+    for (const secret of [cookieSecret, quotedSecret]) assert.ok(!rewritten.includes(secret));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+
+  const warnings = [];
+  reportStateLockFailure(new StateLockTimeoutError("raw path and SECRET must stay hidden"), "self-check", (message) => warnings.push(message));
+  reportStateLockFailure(new Error("unrelated"), "self-check", (message) => warnings.push(message));
+  assert.deepEqual(warnings, ["[sheepdog] state update skipped: lock timeout (self-check)"]);
+  assert.ok(!warnings[0].includes("SECRET"));
 
   const existingManual = {
     scopeGlob: "provider/*",
@@ -210,6 +187,39 @@ function runNode(scriptPath, ...args) {
   });
 }
 
+function checkLockRecovery() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sheepdog-lock-check-"));
+  const lockPath = path.join(root, "state.json.lock");
+  try {
+    const writeLock = (owner) => {
+      fs.mkdirSync(lockPath, { recursive: true });
+      fs.writeFileSync(path.join(lockPath, "owner.json"), JSON.stringify(owner));
+    };
+    const readLock = () => JSON.parse(fs.readFileSync(path.join(lockPath, "owner.json"), "utf8"));
+
+    writeLock({ pid: process.pid, hostname: os.hostname(), createdAtMs: 0, ownerId: "live" });
+    assert.throws(
+      () => withFileLock(lockPath, () => assert.fail("live lock entered"), { timeoutMs: 0, staleMs: 1, waitMs: 1 }),
+      /Timed out acquiring state lock/,
+    );
+    assert.equal(readLock().ownerId, "live");
+    assert.throws(
+      () => updateStateFile(path.join(root, "state.json"), () => assert.fail("locked update entered"), {
+        lockOptions: { timeoutMs: 0, staleMs: 1, waitMs: 1 },
+      }),
+      /state update was not written/,
+    );
+    assert.equal(readLock().ownerId, "live");
+
+    fs.rmSync(lockPath, { recursive: true });
+    writeLock({ pid: 2_147_483_647, hostname: os.hostname(), createdAtMs: 0, ownerId: "dead" });
+    assert.equal(withFileLock(lockPath, () => "recovered", { timeoutMs: 50, staleMs: 1, waitMs: 1 }), "recovered");
+    assert.ok(!fs.existsSync(lockPath));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function checkConcurrentMerge() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sheepdog-self-check-"));
   try {
@@ -241,6 +251,7 @@ if (mode === "time") {
   console.log("self-check: mapper ok");
 } else if (mode === "state") {
   checkStateSemantics();
+  checkLockRecovery();
   await checkConcurrentMerge();
   console.log("self-check: state ok");
 } else {

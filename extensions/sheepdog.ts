@@ -44,7 +44,8 @@ import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } f
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { loadStateFile, mergeDetectedWakeEntry, updateStateFile } from "./sheepdog-state.ts";
+import { loadMapperConfig, resolveMapper, type LoadedMapperConfig } from "./sheepdog-mapper.ts";
+import { loadStateFile, mergeDetectedWakeEntry, redactAndTruncateExcerpt, reportStateLockFailure, updateStateFile } from "./sheepdog-state.ts";
 
 const STATUS_KEY = "sheepdog";
 const LEGACY_STATUS_KEY = "rate-limit-wakeup";
@@ -85,21 +86,6 @@ const MAX_TIMEOUT_MS = 2_147_483_000;
 
 type WakeStatus = "pending" | "fired" | "cancelled" | "expired";
 type WakeOrigin = "auto" | "manual";
-type AdapterId = "generic" | "anthropic" | "openai-compatible";
-type AdapterArgs = Record<string, string>;
-
-interface MapperRule {
-  regex: RegExp;
-  adapter: AdapterId;
-  scope: string;
-  args: AdapterArgs;
-}
-
-interface LoadedConfig {
-  rules: MapperRule[];
-  warnings: string[];
-  created: boolean;
-}
 
 interface Component {
   readonly width?: number;
@@ -240,7 +226,7 @@ function parseRateLimitError(errorMessage: string): ParsedRateLimit | null {
 
   return {
     delayMs: durationMs + SAFETY_BUFFER_MS,
-    excerpt: errorMessage.slice(0, 400),
+    excerpt: redactAndTruncateExcerpt(errorMessage),
   };
 }
 
@@ -390,186 +376,13 @@ function parseProviderRateLimit(headers: Record<string, string> | undefined | nu
 
   return {
     delayMs: delayMs + SAFETY_BUFFER_MS,
-    excerpt: excerpt.slice(0, 400),
+    excerpt: redactAndTruncateExcerpt(excerpt),
   };
 }
 
-  "retry-after-ms",
-  "x-retry-after-ms",
-  "retry-after",
-  "x-ratelimit-reset-after",
-  "x-rate-limit-reset-after",
-  "reset-after",
-  "x-ratelimit-reset",
-  "x-rate-limit-reset",
-];
-
-const NUMERIC_RE = /^\d+(?:\.\d+)?$/;
-
-const ADAPTER_IDS = new Set<AdapterId>(["generic", "anthropic", "openai-compatible"]);
-const ANTHROPIC_ARG_NAMES = new Set(["credentialFile", "configDir", "baseUrl"]);
-const PATH_ARG_NAMES = new Set(["credentialFile", "configDir"]);
 const MINIMAL_CONFIG = '{\n  "mappers": []\n}\n';
 
-function getHeaderCaseInsensitive(headers: Record<string, string>, name: string): string | undefined {
-  const lower = name.toLowerCase();
-  for (const key of Object.keys(headers)) {
-    if (key.toLowerCase() === lower) {
-      const value = headers[key];
-      if (typeof value === "string" && value.length > 0) {
-        return value;
-      }
-    }
-  }
-  return undefined;
-}
-
-// Parses a duration out of freeform header text, reusing the same d/h/m/s
-// scanning logic as the agent_end message parser. Tries the "reset after"
-// style keyword window first (in case a provider echoes message-like text
-// into a header), then falls back to scanning the raw value directly since
-// header values are short and rarely contain unrelated numbers.
-function parseFreeformDurationMs(text: string): number | null {
-  const keywordMatch = text.match(DURATION_KEYWORD);
-  if (keywordMatch && keywordMatch.index !== undefined) {
-    const windowStart = keywordMatch.index + keywordMatch[0].length;
-    const window = text.slice(windowStart, windowStart + DURATION_WINDOW);
-    const fromKeyword = parseDurationMs(window);
-    if (fromKeyword !== null) {
-      return fromKeyword;
-    }
-  }
-  return parseDurationMs(text.slice(0, DURATION_WINDOW));
-}
-
-// Parses a single rate-limit header's value into a millisecond delay from
-// now. Interpretation depends on both the header name (which unit/format a
-// header conventionally uses) and the value's shape (numeric vs date vs
-// freeform text), since providers are inconsistent here.
-function parseHeaderDelayMs(headerName: string, rawValue: string): number | null {
-  const value = rawValue.trim();
-  if (!value) {
-    return null;
-  }
-  const lowerName = headerName.toLowerCase();
-
-  if (NUMERIC_RE.test(value)) {
-    const n = Number.parseFloat(value);
-    if (!Number.isFinite(n) || n < 0) {
-      return null;
-    }
-
-    if (lowerName.includes("-ms")) {
-      // retry-after-ms / x-retry-after-ms: already a millisecond delta.
-      return n;
-    }
-    if (lowerName === "retry-after") {
-      // RFC 7231: retry-after numeric value is a seconds delta.
-      return n * 1_000;
-    }
-    if (lowerName.includes("reset-after")) {
-      // x-ratelimit-reset-after / x-rate-limit-reset-after / reset-after:
-      // seconds delta by convention (GitHub, Discord, etc).
-      return n * 1_000;
-    }
-    if (lowerName.includes("reset")) {
-      // x-ratelimit-reset / x-rate-limit-reset: absolute reset timestamp,
-      // as unix seconds or unix milliseconds depending on magnitude. A
-      // small value (below the unix-seconds range) is ambiguous but most
-      // commonly means "seconds until reset", so treat it as a delta.
-      const nowMs = Date.now();
-      if (n >= 1e12) {
-        return n - nowMs;
-      }
-      if (n >= 1e9) {
-        return n * 1_000 - nowMs;
-      }
-      return n * 1_000;
-    }
-    // Unrecognized numeric convention: default to seconds delta.
-    return n * 1_000;
-  }
-
-  const parsedDate = Date.parse(value);
-  if (!Number.isNaN(parsedDate)) {
-    return parsedDate - Date.now();
-  }
-
-  return parseFreeformDurationMs(value);
-}
-
-/**
- * Parses a wake delay directly out of a 429 provider response's headers.
- * Checks known rate-limit headers in priority order and returns the first
- * one that yields a usable positive delay. Returns null when no known
- * rate-limit header is present or none parse to a usable delay.
- */
-function parseProviderRateLimit(headers: Record<string, string> | undefined | null): ParsedRateLimit | null {
-  if (!headers || typeof headers !== "object") {
-    return null;
-  }
-
-  const present: Array<[string, string]> = [];
-  for (const name of RATE_LIMIT_HEADER_NAMES) {
-    const value = getHeaderCaseInsensitive(headers, name);
-    if (value !== undefined) {
-      present.push([name, value]);
-    }
-  }
-  if (present.length === 0) {
-    return null;
-  }
-
-  let delayMs: number | null = null;
-  for (const [name, value] of present) {
-    const parsed = parseHeaderDelayMs(name, value);
-    if (parsed !== null && Number.isFinite(parsed) && parsed > 0) {
-      delayMs = parsed;
-      break;
-    }
-  }
-  if (delayMs === null) {
-    return null;
-  }
-
-  // Only known rate-limit headers are ever included here, never the full
-  // header set (see RATE_LIMIT_HEADER_NAMES comment above).
-  const excerpt = `provider response 429; ${present.map(([name, value]) => `${name}=${value}`).join("; ")}`;
-
-  return {
-    delayMs: delayMs + SAFETY_BUFFER_MS,
-    excerpt: excerpt.slice(0, 400),
-  };
-}
-
 // --- config / mapper ---------------------------------------------------------
-
-function expandPathValue(value: string): string {
-  if (value === "$HOME") return os.homedir();
-  if (value.startsWith("$HOME/")) return path.join(os.homedir(), value.slice(6));
-  if (value === "~") return os.homedir();
-  if (value.startsWith("~/")) return path.join(os.homedir(), value.slice(2));
-  return value;
-}
-
-function validateAdapterArgs(adapter: AdapterId, rawArgs: unknown, ruleLabel: string): { args: AdapterArgs; warning?: string } {
-  if (rawArgs === undefined) return { args: {} };
-  if (!rawArgs || typeof rawArgs !== "object" || Array.isArray(rawArgs)) {
-    return { args: {}, warning: `${ruleLabel}: args must be an object` };
-  }
-
-  const args: AdapterArgs = {};
-  for (const [key, value] of Object.entries(rawArgs as Record<string, unknown>)) {
-    if (adapter !== "anthropic" || !ANTHROPIC_ARG_NAMES.has(key)) {
-      return { args: {}, warning: `${ruleLabel}: unknown args.${key} for adapter ${adapter}` };
-    }
-    if (typeof value !== "string" || value.length === 0) {
-      return { args: {}, warning: `${ruleLabel}: args.${key} must be a non-empty string` };
-    }
-    args[key] = PATH_ARG_NAMES.has(key) ? expandPathValue(value) : value;
-  }
-  return { args };
-}
 
 function createConfigIfMissing(): boolean {
   if (fs.existsSync(getConfigPath())) return false;
@@ -578,83 +391,18 @@ function createConfigIfMissing(): boolean {
   return true;
 }
 
-function loadConfig(createMissing = false): LoadedConfig {
-  const warnings: string[] = [];
+function loadConfig(createMissing = false): LoadedMapperConfig & { created: boolean } {
   let created = false;
   try {
     if (!fs.existsSync(getConfigPath())) {
       if (createMissing) created = createConfigIfMissing();
-      return { rules: [], warnings, created };
+      return { rules: [], warnings: [], created };
     }
-
-    const parsed = JSON.parse(fs.readFileSync(getConfigPath(), "utf8")) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { rules: [], warnings: ["config root must be an object"], created };
-    }
-    const mappers = (parsed as Record<string, unknown>).mappers;
-    if (!Array.isArray(mappers)) {
-      return { rules: [], warnings: ["config.mappers must be an array"], created };
-    }
-
-    const rules: MapperRule[] = [];
-    mappers.forEach((raw, index) => {
-      const label = `mappers[${index}]`;
-      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-        warnings.push(`${label}: rule must be an object`);
-        return;
-      }
-      const rule = raw as Record<string, unknown>;
-      if (typeof rule.match !== "string" || typeof rule.scope !== "string" || typeof rule.adapter !== "string") {
-        warnings.push(`${label}: match, adapter, and scope must be strings`);
-        return;
-      }
-      if (!ADAPTER_IDS.has(rule.adapter as AdapterId)) {
-        warnings.push(`${label}: unknown adapter ${rule.adapter}`);
-        return;
-      }
-      let regex: RegExp;
-      try {
-        regex = new RegExp(rule.match);
-      } catch (error) {
-        warnings.push(`${label}: invalid regex ${rule.match} (${error instanceof Error ? error.message : "error"})`);
-        return;
-      }
-      const adapter = rule.adapter as AdapterId;
-      const { args, warning } = validateAdapterArgs(adapter, rule.args, label);
-      if (warning) {
-        warnings.push(warning);
-        return;
-      }
-      rules.push({ regex, adapter, scope: rule.scope, args });
-    });
-    return { rules, warnings, created };
+    return { ...loadMapperConfig(JSON.parse(fs.readFileSync(getConfigPath(), "utf8")), os.homedir()), created };
   } catch (error) {
     return { rules: [], warnings: [`config unreadable: ${error instanceof Error ? error.message : "error"}`], created };
   }
 }
-
-function resolveMapper(modelRef: string | undefined, config = loadConfig()): { adapter: AdapterId; scopeGlob: string; args: AdapterArgs } {
-  if (modelRef) {
-    for (const rule of config.rules) {
-      if (rule.regex.test(modelRef)) {
-        return { adapter: rule.adapter, scopeGlob: rule.scope, args: rule.args };
-      }
-    }
-  }
-  return { adapter: "generic", scopeGlob: computeScopeGlob(modelRef) ?? CATCHALL_SCOPE, args: {} };
-}
-
-// --- dynamic rate-limit scope ------------------------------------------------
-
-// Builds a "provider/id" model reference from the session's current model.
-// Deliberately reads ctx.model live at detection time rather than caching it
-// anywhere — there is no hardcoded model or provider name in this file.
-// Returns undefined when no model is selected, or when either half is empty
-// (should not normally happen, but we never want to fabricate a ref).
-function computeModelRef(ctx: ExtensionContext): string | undefined {
-  try {
-    const model = ctx.model;
-    if (!model || typeof model.provider !== "string" || typeof model.id !== "string") {
 
 // --- dynamic rate-limit scope ------------------------------------------------
 
@@ -678,47 +426,18 @@ function computeModelRef(ctx: ExtensionContext): string | undefined {
   }
 }
 
-// Derives a rate-limit scope glob from a model ref by replacing only the
-// final "/"-delimited segment with "*". This generalizes just far enough to
-// cover "same model family, different specific model id" rate limits without
-// guessing at provider-specific grouping rules:
-//   omniroute/cx/gpt-5.4        -> omniroute/cx/*
-//   openrouter/openai/gpt-5.4   -> openrouter/openai/*
-//   anthropic/claude-sonnet-5   -> anthropic/*
-// Safest-behavior choice for the missing-slash case: a modelRef we build
-// ourselves is always "provider/id" (see computeModelRef above) so it should
-// always contain at least one "/". If it somehow doesn't, we treat the ref
-// as opaque and return undefined rather than fabricating a scope like
-// "unknown/*" that could accidentally overlap with a real provider named
-// "unknown" — callers fall back to CATCHALL_SCOPE when this returns
-// undefined.
-function computeScopeGlob(modelRef: string | undefined): string | undefined {
-  if (!modelRef) {
-    return undefined;
-  }
-  const lastSlash = modelRef.lastIndexOf("/");
-  if (lastSlash === -1) {
-    return undefined;
-  }
-  return `${modelRef.slice(0, lastSlash)}/*`;
-}
-
 // --- state (v3, multi-scope) -------------------------------------------------
 
 function loadState(): StateFileV3 | null {
   return loadStateFile(getStatePath(), { catchallScope: CATCHALL_SCOPE }) as StateFileV3 | null;
 }
 
-function updateState<T>(updater: (state: StateFileV3) => T): T | undefined {
-  try {
-    return updateStateFile(
-      getStatePath(),
-      (state) => updater(state as StateFileV3),
-      { catchallScope: CATCHALL_SCOPE },
-    ) as T;
-  } catch {
-    return undefined;
-  }
+function updateState<T>(updater: (state: StateFileV3) => T): T {
+  return updateStateFile(
+    getStatePath(),
+    (state) => updater(state as StateFileV3),
+    { catchallScope: CATCHALL_SCOPE },
+  ) as T;
 }
 
 function pendingEntries(state: StateFileV3 | null): WakeEntry[] {
@@ -1015,7 +734,8 @@ export default function (pi: ExtensionAPI) {
       setFooterStatus();
       maybeStopTicker();
       pi.sendUserMessage(buildResumeMessage(entry), { deliverAs: "followUp" });
-    } catch {
+    } catch (error) {
+      reportStateLockFailure(error, "fire-wake");
       // fail open: best-effort extension must not throw out of a timer callback.
     }
   }
@@ -1060,7 +780,11 @@ export default function (pi: ExtensionAPI) {
     const now = new Date();
     const newWakeAt = new Date(now.getTime() + parsed.delayMs).toISOString();
     const modelRef = computeModelRef(ctx);
-    const mapper = resolveMapper(modelRef);
+    const config = loadConfig();
+    for (const warning of config.warnings) {
+      ctx.ui.notify(`Sheepdog config: ${warning}. Invalid rule skipped; edit ${getConfigPath()}.`, "warning");
+    }
+    const mapper = resolveMapper(modelRef, config, CATCHALL_SCOPE);
     const scopeKey = mapper.scopeGlob;
 
     const entry = updateState((state) => {
@@ -1069,7 +793,7 @@ export default function (pi: ExtensionAPI) {
         scopeGlob: scopeKey,
         wakeAt: newWakeAt,
         delayMs: parsed.delayMs,
-        redactedExcerpt: parsed.excerpt,
+        redactedExcerpt: redactAndTruncateExcerpt(parsed.excerpt),
         source,
         adapter: mapper.adapter,
         modelRef,
@@ -1119,7 +843,8 @@ export default function (pi: ExtensionAPI) {
           scheduleWake(entry);
         }
       }
-    } catch {
+    } catch (error) {
+      reportStateLockFailure(error, "session-start");
       // fail open
     }
   });
@@ -1141,7 +866,8 @@ export default function (pi: ExtensionAPI) {
       }
 
       upsertDetectedState(ctx, parsed, "provider-429");
-    } catch {
+    } catch (error) {
+      reportStateLockFailure(error, "provider-response");
       // fail open
     }
   });
@@ -1165,7 +891,8 @@ export default function (pi: ExtensionAPI) {
       }
 
       upsertDetectedState(ctx, parsed, "agent_end");
-    } catch {
+    } catch (error) {
+      reportStateLockFailure(error, "agent-end");
       // fail open
     }
   });
