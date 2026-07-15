@@ -47,7 +47,7 @@ export function normalizeWakeEntry(raw, scopeKey, options: any = {}) {
         ? entry.sourceExcerpt
         : "",
   );
-  const origin = entry.origin === "manual" ? "manual" : "auto";
+  const origin = entry.origin === "manual" || entry.source === "manual" ? "manual" : "auto";
   return {
     scopeGlob: typeof entry.scopeGlob === "string" && entry.scopeGlob.length > 0 ? entry.scopeGlob : scopeKey,
     status: normalizeWakeStatus(entry.status),

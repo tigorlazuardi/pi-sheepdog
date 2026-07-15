@@ -142,6 +142,29 @@ function checkStateSemantics() {
   assert.equal(sticky.origin, "manual");
   assert.equal(sticky.wakeAt, existingManual.wakeAt);
 
+  const v2Manual = normalizeState({
+    version: 2,
+    entries: {
+      "provider/*": {
+        ...existingManual,
+        origin: undefined,
+        source: "manual",
+        sourceExcerpt: "manual: set via /rate-limit-wakeup-set (1m)",
+      },
+    },
+  }).entries["provider/*"];
+  const preservedV2Manual = mergeDetectedWakeEntry(v2Manual, {
+    scopeGlob: "provider/*",
+    wakeAt: "2026-07-14T10:00:20.000Z",
+    delayMs: 20000,
+    redactedExcerpt: "earlier auto",
+    source: "agent_end",
+    cwd: process.cwd(),
+    nowIso: "v2-manual-sticky",
+  });
+  assert.equal(v2Manual.origin, "manual");
+  assert.equal(preservedV2Manual.wakeAt, existingManual.wakeAt);
+
   const existingAuto = { ...existingManual, origin: "auto", wakeAt: "2026-07-14T10:01:00.000Z" };
   const earliest = mergeDetectedWakeEntry(existingAuto, {
     scopeGlob: "provider/*",
