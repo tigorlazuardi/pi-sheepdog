@@ -24,17 +24,14 @@ Run:
 
 Expected result:
 
-- Creates `${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/sheepdog/config.json` if missing.
-- Prints the config path.
-- Prints warnings for invalid mapper rules if present.
+- Prints `${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/sheepdog/config.json`.
 
 ## 3. Trigger or simulate a cooldown
 
 Use any provider/model path that can produce a cooldown signal. The current contract expects Sheepdog to accept:
 
 - a provider 429 header path, or
-- a final error text path, or
-- a manual panel-created wake.
+- a final error text path.
 
 ## 4. Inspect status
 
@@ -48,7 +45,7 @@ Expected result in TUI mode:
 
 - Opens the Sheepdog panel.
 - Shows pending scopes.
-- Marks relevance for matching, catch-all, or other scopes.
+- Stays read-only in Ticket 1.
 
 Expected result outside TUI mode:
 
@@ -58,8 +55,4 @@ Expected result outside TUI mode:
 
 ## 5. Wait for wake behavior
 
-When the cooldown passes:
-
-- matching scope or `*` may follow up in the active session,
-- mismatched scope stays pending and only gets a short human notice,
-- startup-overdue entries expire silently.
+When the cooldown passes, Sheepdog sends the scheduled follow-up message for the tracked scope.

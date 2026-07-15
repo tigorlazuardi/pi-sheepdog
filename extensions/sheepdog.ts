@@ -1,7 +1,6 @@
-// pi-sheepdog (rate-limit-wakeup): detects provider rate-limit/quota
-// conditions and schedules a follow-up message that resumes the
-// interrupted task once the cooldown has passed. Two independent detection
-// paths feed the same scheduler:
+// pi-sheepdog: detects provider rate-limit/quota conditions and schedules
+// a follow-up message that resumes the interrupted task once the cooldown
+// has passed. Two independent detection paths feed the same scheduler:
 //
 //   - after_provider_response: fires for every provider HTTP response,
 //     before the stream body is consumed. On a 429 we parse the wake time
@@ -11,25 +10,18 @@
 //     headers (or errors surfaced only as text). Parses "reset after ..."
 //     style phrasing out of the error message.
 //
-// A third, manual path exists via /rate-limit-wakeup-set for when the user
-// already knows the reset time (e.g. from a dashboard) and wants to just
-// set a timer directly, with a relative duration.
-//
-// State is persisted to a global JSON file under ~/.pi/agent/.cache so
-// pending wakes survive /reload and full process restarts: session_start
+// State is persisted to a global JSON file under the Pi agent dir's cache
+// so pending wakes survive /reload and full process restarts: session_start
 // re-reads the file, reschedules every remaining entry, or fires it
 // immediately if its wake time already passed while pi was not running.
 //
 // This extension is intentionally not session-scoped (the state file is
 // global, not per-project or per-session) because a rate limit is a
-// provider/account-level condition, not a per-session one. If multiple pi
-// processes hit rate limits concurrently for *different* scopes, each gets
-// its own tracked entry (see "state v2" below); for the *same* scope,
-// whichever process wrote last wins — documented caveat, not a bug.
+// provider/account-level condition, not a per-session one.
 //
-// --- state v2: multi-scope -------------------------------------------------
+// --- state v3: multi-scope -------------------------------------------------
 //
-// Each detection (or manual /rate-limit-wakeup-set) is tagged with a dynamic
+// Each detection is tagged with a dynamic
 // `scopeGlob` derived from the model in play at detection time (see
 // computeModelRef / computeScopeGlob below): `omniroute/cx/gpt-5.4` ->
 // `omniroute/cx/*`, `anthropic/claude-sonnet-5` -> `anthropic/*`. There is no
@@ -42,42 +34,64 @@
 // with no resolvable model (scopeGlob undefined) are filed under the
 // catch-all key "*" (see CATCHALL_SCOPE below).
 //
-// Dedupe is per-scope: for a given scope, the earliest wakeAt among pending
-// detections wins (see upsertDetectedState). A manual /rate-limit-wakeup-set
-// always overwrites its target scope's entry outright — the user picked the
-// time on purpose, so it isn't subject to the "earliest wins" tie-break.
-//
-// state.json v1 (pre-multi-scope: a single global wakeAt, no `entries` map)
-// is migrated in place the first time it's read after upgrading: it gets
-// wrapped into `entries[scopeGlob ?? "*"]` and rewritten as v2 so no pending
-// wake is lost across the upgrade. See loadState() / migrateLegacyEntry().
+// Dedupe is per-scope: earliest automatic wake wins; manual overrides are
+// sticky until the entry reaches a terminal status. Updates are serialized
+// through a short file lock and always re-read the latest on-disk state under
+// that lock before writing a temp file + rename, so concurrent writers do not
+// drop unrelated scopes.
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { appendDebugEvent } from "./sheepdog-debug.ts";
+import { consumeDetectorResult, detectErrorText, detectHeaders, type ParsedRateLimit } from "./sheepdog-detector.ts";
+import { loadMapperConfig, resolveMapper, type AdapterId, type LoadedMapperConfig } from "./sheepdog-mapper.ts";
+import { loadStateFile, mergeDetectedWakeEntry, redactAndTruncateExcerpt, reportStateLockFailure, updateStateFile } from "./sheepdog-state.ts";
 
-const STATE_DIR = path.join(os.homedir(), ".pi", "agent", ".cache", "rate-limit-wakeup");
-const STATE_PATH = path.join(STATE_DIR, "state.json");
-const STATE_VERSION = 2;
+const STATUS_KEY = "sheepdog";
+const LEGACY_STATUS_KEY = "rate-limit-wakeup";
+
+function resolveAgentDir(): string {
+  return process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
+}
+
+function getStateDir(): string {
+  return path.join(resolveAgentDir(), ".cache", "sheepdog");
+}
+
+function getStatePath(): string {
+  return path.join(getStateDir(), "state.json");
+}
+
+function getSheepdogDir(): string {
+  return path.join(resolveAgentDir(), "sheepdog");
+}
+
+function getConfigPath(): string {
+  return path.join(getSheepdogDir(), "config.json");
+}
+
+function getDebugPath(): string {
+  return path.join(getSheepdogDir(), "debug.log");
+}
+
+function debug(event: string, details: Record<string, unknown> = {}): void {
+  appendDebugEvent(getDebugPath(), event, details);
+}
 
 // Scope key used for entries with no resolvable model (no ctx.model, or a
 // modelRef that couldn't be turned into a glob). Documented catch-all: any
 // detection without a scope is filed here rather than fabricating one.
 const CATCHALL_SCOPE = "*";
 
-// Safety buffer added on top of the parsed reset duration so we don't wake
-// up a few seconds before the provider actually lifts the limit. Only
-// applies to automatic detections (429 headers / agent_end text) — a manual
-// /rate-limit-wakeup-set uses the user's exact requested duration, no buffer.
-const SAFETY_BUFFER_MS = 60_000;
-
 // Node's setTimeout silently overflows for delays beyond ~24.8 days
 // (2^31-1 ms). For that unlikely case we schedule an intermediate wake and
 // recompute the remaining delay when it fires, rather than firing early.
 const MAX_TIMEOUT_MS = 2_147_483_000;
 
-type WakeStatus = "pending" | "fired" | "cancelled";
+type WakeStatus = "pending" | "fired" | "cancelled" | "expired";
+type WakeOrigin = "auto" | "manual";
 
 interface Component {
   readonly width?: number;
@@ -99,20 +113,23 @@ function visibleWidth(str: string): number {
 
 // Which of the three paths produced this entry. "provider-429" = parsed
 // from a 429 response's headers; "agent_end" = parsed from error text;
-// "manual" = user ran /rate-limit-wakeup-set.
-type RateLimitSource = "provider-429" | "agent_end" | "manual";
+type RateLimitSource = "provider-429" | "agent_end";
 
 interface WakeEntry {
-  // Always equal to the key this entry is stored under in
-  // StateFileV2.entries — duplicated onto the entry itself so callers that
-  // only have the entry (e.g. inside a setTimeout closure) don't need to
-  // thread the key through separately.
+  // Always equal to the key this entry is stored under in state.entries —
+  // duplicated onto the entry itself so callers that only have the entry
+  // (e.g. inside a setTimeout closure) don't need to thread the key through
+  // separately.
   scopeGlob: string;
   status: WakeStatus;
+  origin: WakeOrigin;
   wakeAt: string; // ISO timestamp
   delayMs: number; // total delay from detection to wakeAt (including buffer, if any)
-  sourceExcerpt: string; // trimmed excerpt of the error text / manual note that triggered this
+  redactedExcerpt: string; // trimmed/redacted excerpt of the trigger text
   source: RateLimitSource;
+  originalSource?: RateLimitSource;
+  adapter?: AdapterId;
+  humanNotifiedAt?: string;
   modelRef?: string; // e.g. "omniroute/cx/gpt-5.4", model detected on (if any)
   sessionId?: string;
   sessionFile?: string;
@@ -121,399 +138,35 @@ interface WakeEntry {
   updatedAt: string;
 }
 
-interface StateFileV2 {
-  version: 2;
+interface StateFileV3 {
+  version: 3;
   entries: Record<string, WakeEntry>;
 }
 
-// --- rate limit / duration parsing -----------------------------------------
+// Detection parser/interceptor pipeline lives in sheepdog-detector.ts.
 
-const RATE_LIMIT_INDICATOR = /rate.?limit|quota|429|too many requests/i;
+const MINIMAL_CONFIG = '{\n  "mappers": []\n}\n';
 
-// Looks for "reset after ...", "retry after ...", "resets in ...", "retry in ...",
-// "try again in ..." followed by a d/h/m/s duration, case-insensitive.
-const DURATION_KEYWORD = /(?:reset|resets|retry)\s+(?:after|in)\s+|try\s+again\s+in\s+/i;
+// --- config / mapper ---------------------------------------------------------
 
-// Trailing \b would fail between two word characters (e.g. the "d"/"3"
-// boundary inside "2d3h"), silently dropping units whenever a compact
-// multi-unit duration appears with no separators. Use a negative lookahead
-// that only rejects a following letter (so an adjacent digit, which starts
-// the next unit token, is still allowed) instead.
-const DAYS_RE = /(\d+)\s*d(?:ays?)?(?![a-z])/i;
-const HOURS_RE = /(\d+)\s*h(?:ours?|rs?)?(?![a-z])/i;
-const MINUTES_RE = /(\d+)\s*m(?:in(?:ute)?s?)?(?![a-z])/i;
-const SECONDS_RE = /(\d+)\s*s(?:ec(?:ond)?s?)?(?![a-z])/i;
-
-// Window of text scanned for d/h/m/s tokens after the duration keyword. Real
-// messages are short, so this stays well clear of unrelated numbers further
-// along in the string.
-const DURATION_WINDOW = 60;
-
-interface ParsedRateLimit {
-  delayMs: number;
-  excerpt: string;
+function createConfigIfMissing(): boolean {
+  if (fs.existsSync(getConfigPath())) return false;
+  fs.mkdirSync(getSheepdogDir(), { recursive: true });
+  fs.writeFileSync(getConfigPath(), MINIMAL_CONFIG, "utf8");
+  return true;
 }
 
-// Scans freeform text for d/h/m/s tokens and sums them additively (e.g.
-// "2d3h" -> 2 days + 3 hours). Used for both the agent_end text parser and
-// the provider-header freeform fallback. This is intentionally lenient
-// (matches tokens anywhere in the window, ignores anything else) — the
-// strict, whole-string variant for /rate-limit-wakeup-set is
-// parseRelativeDurationStrict() below.
-function parseDurationMs(window: string): number | null {
-  let totalMs = 0;
-  let matched = false;
-
-  const days = window.match(DAYS_RE);
-  if (days) {
-    totalMs += Number.parseInt(days[1], 10) * 86_400_000;
-    matched = true;
-  }
-  const hours = window.match(HOURS_RE);
-  if (hours) {
-    totalMs += Number.parseInt(hours[1], 10) * 3_600_000;
-    matched = true;
-  }
-  const minutes = window.match(MINUTES_RE);
-  if (minutes) {
-    totalMs += Number.parseInt(minutes[1], 10) * 60_000;
-    matched = true;
-  }
-  const seconds = window.match(SECONDS_RE);
-  if (seconds) {
-    totalMs += Number.parseInt(seconds[1], 10) * 1_000;
-    matched = true;
-  }
-
-  if (!matched || totalMs <= 0) {
-    return null;
-  }
-  return totalMs;
-}
-
-/**
- * Detects a rate-limit/quota error and extracts a reset duration.
- * Returns null when the text doesn't look like a rate limit error, or a
- * rate limit is mentioned but no parseable duration is present.
- */
-function parseRateLimitError(errorMessage: string): ParsedRateLimit | null {
-  if (!errorMessage || !RATE_LIMIT_INDICATOR.test(errorMessage)) {
-    return null;
-  }
-
-  const keywordMatch = errorMessage.match(DURATION_KEYWORD);
-  if (!keywordMatch || keywordMatch.index === undefined) {
-    return null;
-  }
-
-  const windowStart = keywordMatch.index + keywordMatch[0].length;
-  const window = errorMessage.slice(windowStart, windowStart + DURATION_WINDOW);
-  const durationMs = parseDurationMs(window);
-  if (durationMs === null) {
-    return null;
-  }
-
-  return {
-    delayMs: durationMs + SAFETY_BUFFER_MS,
-    excerpt: errorMessage.slice(0, 400),
-  };
-}
-
-// --- manual duration parsing (/rate-limit-wakeup-set) -----------------------
-//
-// V1 = relative duration ONLY. Dependency-free (reuses the d/h/m/s tokens
-// above), but unlike parseDurationMs this is strict: the *entire* input
-// (after stripping whitespace) must be made of d/h/m/s tokens, or it's
-// rejected. Absolute time (colons, dates) and bare numbers (no unit,
-// ambiguous) get their own clearer error messages — see parseManualSetArgs.
-
-// Whole-token check used while walking whitespace-split argv tokens: does
-// this single token look like (part of) a duration, e.g. "1h30m", "2d",
-// "90s"? Individual tokens in "1h 29m 27s" each match this on their own.
-const DURATION_TOKEN_RE = /^(\d+[dhms])+$/i;
-
-// Extraction regex over a token run with whitespace already stripped, e.g.
-// "1h30m" or "1h29m27s" (spaces between tokens are allowed by the command
-// syntax, but are stripped before this runs).
-const DURATION_EXTRACT_RE = /(\d+)([dhms])/gi;
-
-const ABSOLUTE_LIKE_RE = /\d{1,2}:\d{2}|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4}/;
-const BARE_DIGITS_RE = /^\d+$/;
-
-// Strictly parses a compact (whitespace already removed) duration string
-// like "1h30m" or "2d3h15m" into milliseconds. Returns null unless the
-// *entire* string is consumed by consecutive d/h/m/s tokens with no gaps —
-// this is what rejects things like "15:30" or "90" that parseDurationMs
-// would otherwise happily skip over.
-function parseRelativeDurationStrict(compact: string): number | null {
-  if (!compact) {
-    return null;
-  }
-
-  const re = new RegExp(DURATION_EXTRACT_RE);
-  let match: RegExpExecArray | null;
-  let consumed = 0;
-  let ms = 0;
-  let matchedAny = false;
-
-  while ((match = re.exec(compact)) !== null) {
-    if (match.index !== consumed) {
-      // Gap or leftover garbage before this token (e.g. "1h:30m") — reject
-      // rather than silently skip it.
-      return null;
+function loadConfig(createMissing = false): LoadedMapperConfig & { created: boolean } {
+  let created = false;
+  try {
+    if (!fs.existsSync(getConfigPath())) {
+      if (createMissing) created = createConfigIfMissing();
+      return { rules: [], warnings: [], created };
     }
-    consumed = match.index + match[0].length;
-    matchedAny = true;
-    const n = Number.parseInt(match[1], 10);
-    if (!Number.isFinite(n)) {
-      return null;
-    }
-    switch (match[2].toLowerCase()) {
-      case "d":
-        ms += n * 86_400_000;
-        break;
-      case "h":
-        ms += n * 3_600_000;
-        break;
-      case "m":
-        ms += n * 60_000;
-        break;
-      case "s":
-        ms += n * 1_000;
-        break;
-    }
+    return { ...loadMapperConfig(JSON.parse(fs.readFileSync(getConfigPath(), "utf8")), os.homedir()), created };
+  } catch (error) {
+    return { rules: [], warnings: [`config unreadable: ${error instanceof Error ? error.message : "error"}`], created };
   }
-
-  if (!matchedAny || consumed !== compact.length || ms <= 0) {
-    return null;
-  }
-  return ms;
-}
-
-type ManualSetParseResult = { ok: true; ms: number; scopeToken?: string } | { ok: false; error: string };
-
-const MANUAL_SET_USAGE =
-  "Usage: /rate-limit-wakeup-set <duration> [scope]  " +
-  "e.g. /rate-limit-wakeup-set 1h30m  or  /rate-limit-wakeup-set 2d3h omniroute/cx/*";
-
-/**
- * Parses `/rate-limit-wakeup-set <duration> [scope]` argument text.
- *
- * <duration> is one or more whitespace-separated d/h/m/s tokens (spaces
- * optional within a token, required between tokens and the trailing scope):
- * "30s", "1h30m", "1h 29m 27s", "2d3h15m" are all valid. Everything after
- * the duration tokens is treated as an optional scope glob, passed through
- * as-is (e.g. "omniroute/cx/*").
- *
- * Rejects (V1, relative-only): bare numbers ("90", "1530" — no unit,
- * ambiguous) and absolute-time-shaped input ("15:30", ISO dates — not
- * supported yet), each with a distinct error message.
- */
-function parseManualSetArgs(argsRaw: string): ManualSetParseResult {
-  const trimmed = argsRaw.trim();
-  if (!trimmed) {
-    return { ok: false, error: MANUAL_SET_USAGE };
-  }
-
-  const tokens = trimmed.split(/\s+/);
-  const durationTokens: string[] = [];
-  let i = 0;
-  while (i < tokens.length && DURATION_TOKEN_RE.test(tokens[i])) {
-    durationTokens.push(tokens[i]);
-    i += 1;
-  }
-
-  if (durationTokens.length === 0) {
-    const first = tokens[0];
-    // Bare-digits check runs first: JS's Date.parse() is lenient enough to
-    // accept plain numeric strings like "90" or "1530" (interpreting them as
-    // years or other date fragments) without throwing, so checking the
-    // Date.parse fallback before BARE_DIGITS_RE would misclassify these as
-    // "absolute time" instead of "no unit". ABSOLUTE_LIKE_RE-matching input
-    // (colons, dashes, slashes) never matches BARE_DIGITS_RE, so this
-    // reordering doesn't affect the "15:30" / ISO date cases below.
-    if (BARE_DIGITS_RE.test(first)) {
-      return {
-        ok: false,
-        error: `"${first}" has no unit — ambiguous. Use d/h/m/s, e.g. "${first}s" or "1h30m".`,
-      };
-    }
-    if (ABSOLUTE_LIKE_RE.test(first) || !Number.isNaN(Date.parse(first))) {
-      return {
-        ok: false,
-        error: `Absolute time not supported yet — use a relative duration instead (e.g. 1h30m, 2d3h). Got: "${first}"`,
-      };
-    }
-    return {
-      ok: false,
-      error: `Could not parse duration "${first}". Use combinations of d/h/m/s, e.g. 30s, 1h30m, 2d3h15m.`,
-    };
-  }
-
-  const ms = parseRelativeDurationStrict(durationTokens.join(""));
-  if (ms === null) {
-    return {
-      ok: false,
-      error: `Could not parse duration "${durationTokens.join(" ")}". Use combinations of d/h/m/s, e.g. 30s, 1h30m, 2d3h15m.`,
-    };
-  }
-
-  const remainder = tokens.slice(i);
-  if (remainder.length > 1) {
-    return { ok: false, error: `Unexpected extra arguments after scope: "${remainder.slice(1).join(" ")}"` };
-  }
-
-  return { ok: true, ms, scopeToken: remainder[0] };
-}
-
-// --- provider response (429) header parsing --------------------------------
-
-// Known rate-limit response headers, in priority order (most precise/direct
-// first). Only these are ever read or included in the persisted excerpt —
-// we deliberately never dump the full header set, to avoid leaking cookies,
-// auth, or other sensitive response headers into on-disk state.
-const RATE_LIMIT_HEADER_NAMES = [
-  "retry-after-ms",
-  "x-retry-after-ms",
-  "retry-after",
-  "x-ratelimit-reset-after",
-  "x-rate-limit-reset-after",
-  "reset-after",
-  "x-ratelimit-reset",
-  "x-rate-limit-reset",
-];
-
-const NUMERIC_RE = /^\d+(?:\.\d+)?$/;
-
-function getHeaderCaseInsensitive(headers: Record<string, string>, name: string): string | undefined {
-  const lower = name.toLowerCase();
-  for (const key of Object.keys(headers)) {
-    if (key.toLowerCase() === lower) {
-      const value = headers[key];
-      if (typeof value === "string" && value.length > 0) {
-        return value;
-      }
-    }
-  }
-  return undefined;
-}
-
-// Parses a duration out of freeform header text, reusing the same d/h/m/s
-// scanning logic as the agent_end message parser. Tries the "reset after"
-// style keyword window first (in case a provider echoes message-like text
-// into a header), then falls back to scanning the raw value directly since
-// header values are short and rarely contain unrelated numbers.
-function parseFreeformDurationMs(text: string): number | null {
-  const keywordMatch = text.match(DURATION_KEYWORD);
-  if (keywordMatch && keywordMatch.index !== undefined) {
-    const windowStart = keywordMatch.index + keywordMatch[0].length;
-    const window = text.slice(windowStart, windowStart + DURATION_WINDOW);
-    const fromKeyword = parseDurationMs(window);
-    if (fromKeyword !== null) {
-      return fromKeyword;
-    }
-  }
-  return parseDurationMs(text.slice(0, DURATION_WINDOW));
-}
-
-// Parses a single rate-limit header's value into a millisecond delay from
-// now. Interpretation depends on both the header name (which unit/format a
-// header conventionally uses) and the value's shape (numeric vs date vs
-// freeform text), since providers are inconsistent here.
-function parseHeaderDelayMs(headerName: string, rawValue: string): number | null {
-  const value = rawValue.trim();
-  if (!value) {
-    return null;
-  }
-  const lowerName = headerName.toLowerCase();
-
-  if (NUMERIC_RE.test(value)) {
-    const n = Number.parseFloat(value);
-    if (!Number.isFinite(n) || n < 0) {
-      return null;
-    }
-
-    if (lowerName.includes("-ms")) {
-      // retry-after-ms / x-retry-after-ms: already a millisecond delta.
-      return n;
-    }
-    if (lowerName === "retry-after") {
-      // RFC 7231: retry-after numeric value is a seconds delta.
-      return n * 1_000;
-    }
-    if (lowerName.includes("reset-after")) {
-      // x-ratelimit-reset-after / x-rate-limit-reset-after / reset-after:
-      // seconds delta by convention (GitHub, Discord, etc).
-      return n * 1_000;
-    }
-    if (lowerName.includes("reset")) {
-      // x-ratelimit-reset / x-rate-limit-reset: absolute reset timestamp,
-      // as unix seconds or unix milliseconds depending on magnitude. A
-      // small value (below the unix-seconds range) is ambiguous but most
-      // commonly means "seconds until reset", so treat it as a delta.
-      const nowMs = Date.now();
-      if (n >= 1e12) {
-        return n - nowMs;
-      }
-      if (n >= 1e9) {
-        return n * 1_000 - nowMs;
-      }
-      return n * 1_000;
-    }
-    // Unrecognized numeric convention: default to seconds delta.
-    return n * 1_000;
-  }
-
-  const parsedDate = Date.parse(value);
-  if (!Number.isNaN(parsedDate)) {
-    return parsedDate - Date.now();
-  }
-
-  return parseFreeformDurationMs(value);
-}
-
-/**
- * Parses a wake delay directly out of a 429 provider response's headers.
- * Checks known rate-limit headers in priority order and returns the first
- * one that yields a usable positive delay. Returns null when no known
- * rate-limit header is present or none parse to a usable delay.
- */
-function parseProviderRateLimit(headers: Record<string, string> | undefined | null): ParsedRateLimit | null {
-  if (!headers || typeof headers !== "object") {
-    return null;
-  }
-
-  const present: Array<[string, string]> = [];
-  for (const name of RATE_LIMIT_HEADER_NAMES) {
-    const value = getHeaderCaseInsensitive(headers, name);
-    if (value !== undefined) {
-      present.push([name, value]);
-    }
-  }
-  if (present.length === 0) {
-    return null;
-  }
-
-  let delayMs: number | null = null;
-  for (const [name, value] of present) {
-    const parsed = parseHeaderDelayMs(name, value);
-    if (parsed !== null && Number.isFinite(parsed) && parsed > 0) {
-      delayMs = parsed;
-      break;
-    }
-  }
-  if (delayMs === null) {
-    return null;
-  }
-
-  // Only known rate-limit headers are ever included here, never the full
-  // header set (see RATE_LIMIT_HEADER_NAMES comment above).
-  const excerpt = `provider response 429; ${present.map(([name, value]) => `${name}=${value}`).join("; ")}`;
-
-  return {
-    delayMs: delayMs + SAFETY_BUFFER_MS,
-    excerpt: excerpt.slice(0, 400),
-  };
 }
 
 // --- dynamic rate-limit scope ------------------------------------------------
@@ -538,151 +191,26 @@ function computeModelRef(ctx: ExtensionContext): string | undefined {
   }
 }
 
-// Derives a rate-limit scope glob from a model ref by replacing only the
-// final "/"-delimited segment with "*". This generalizes just far enough to
-// cover "same model family, different specific model id" rate limits without
-// guessing at provider-specific grouping rules:
-//   omniroute/cx/gpt-5.4        -> omniroute/cx/*
-//   openrouter/openai/gpt-5.4   -> openrouter/openai/*
-//   anthropic/claude-sonnet-5   -> anthropic/*
-// Safest-behavior choice for the missing-slash case: a modelRef we build
-// ourselves is always "provider/id" (see computeModelRef above) so it should
-// always contain at least one "/". If it somehow doesn't, we treat the ref
-// as opaque and return undefined rather than fabricating a scope like
-// "unknown/*" that could accidentally overlap with a real provider named
-// "unknown" — callers fall back to CATCHALL_SCOPE when this returns
-// undefined.
-function computeScopeGlob(modelRef: string | undefined): string | undefined {
-  if (!modelRef) {
-    return undefined;
-  }
-  const lastSlash = modelRef.lastIndexOf("/");
-  if (lastSlash === -1) {
-    return undefined;
-  }
-  return `${modelRef.slice(0, lastSlash)}/*`;
+// --- state (v3, multi-scope) -------------------------------------------------
+
+function loadState(): StateFileV3 | null {
+  return loadStateFile(getStatePath(), { catchallScope: CATCHALL_SCOPE }) as StateFileV3 | null;
 }
 
-// Resolves the scope key a *new* detection/manual-set for the current
-// context should be filed under: the computed glob, or CATCHALL_SCOPE when
-// no model-derived glob is available.
-function defaultScopeKey(ctx: ExtensionContext): string {
-  return computeScopeGlob(computeModelRef(ctx)) ?? CATCHALL_SCOPE;
+function updateState<T>(updater: (state: StateFileV3) => T): T {
+  return updateStateFile(
+    getStatePath(),
+    (state) => updater(state as StateFileV3),
+    {
+      catchallScope: CATCHALL_SCOPE,
+      lockOptions: {
+        onRetry: (attempt: number) => debug("state_write_retry", { operation: "state-update", attempt }),
+      },
+    },
+  ) as T;
 }
 
-// Turns a scopeGlob (as produced by computeScopeGlob, or CATCHALL_SCOPE) into
-// a RegExp, for display/overlap checks only — e.g. telling the user in
-// /rate-limit-wakeup whether the model they're currently on falls inside a
-// scope that's currently rate-limited. Not used for any dedupe/scheduling
-// decision.
-function globToRegExp(glob: string): RegExp {
-  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
-  return new RegExp(`^${escaped}$`);
-}
-
-function matchesScope(scopeGlob: string | undefined, modelRef: string | undefined): boolean {
-  if (!scopeGlob || !modelRef || scopeGlob === CATCHALL_SCOPE) {
-    return false;
-  }
-  try {
-    return globToRegExp(scopeGlob).test(modelRef);
-  } catch {
-    return false;
-  }
-}
-
-// --- state (v2, multi-scope) -------------------------------------------------
-
-// Best-effort shape check for a v1 (single global wake) state file, so we
-// can migrate it without importing the old, no-longer-defined WakeState
-// type. Anything not matching this (or the current v2 shape) is treated as
-// corrupt/unreadable, same as before.
-function looksLikeLegacyV1(parsed: unknown): parsed is Record<string, unknown> {
-  if (!parsed || typeof parsed !== "object") {
-    return false;
-  }
-  const p = parsed as Record<string, unknown>;
-  return p.version === 1 && typeof p.wakeAt === "string";
-}
-
-function looksLikeV2(parsed: unknown): parsed is StateFileV2 {
-  if (!parsed || typeof parsed !== "object") {
-    return false;
-  }
-  const p = parsed as Record<string, unknown>;
-  return p.version === STATE_VERSION && !!p.entries && typeof p.entries === "object";
-}
-
-// Wraps a v1 legacy state object into a v2 WakeEntry. The source field
-// didn't exist in v1 — both the header-429 and agent_end paths wrote into
-// the same untagged WakeState — so we recover it heuristically from the
-// excerpt's format (only the header path ever wrote the
-// "provider response 429; ..." prefix, see parseProviderRateLimit above).
-function migrateLegacyEntry(legacy: Record<string, unknown>, scopeKey: string): WakeEntry {
-  const excerpt = typeof legacy.sourceExcerpt === "string" ? legacy.sourceExcerpt : "";
-  const source: RateLimitSource = excerpt.startsWith("provider response 429;") ? "provider-429" : "agent_end";
-  const status: WakeStatus =
-    legacy.status === "pending" || legacy.status === "fired" || legacy.status === "cancelled"
-      ? legacy.status
-      : "cancelled";
-  const now = new Date().toISOString();
-  return {
-    scopeGlob: scopeKey,
-    status,
-    wakeAt: typeof legacy.wakeAt === "string" ? legacy.wakeAt : now,
-    delayMs: typeof legacy.delayMs === "number" ? legacy.delayMs : 0,
-    sourceExcerpt: excerpt,
-    source,
-    modelRef: typeof legacy.modelRef === "string" ? legacy.modelRef : undefined,
-    sessionId: typeof legacy.sessionId === "string" ? legacy.sessionId : undefined,
-    sessionFile: typeof legacy.sessionFile === "string" ? legacy.sessionFile : undefined,
-    cwd: typeof legacy.cwd === "string" ? legacy.cwd : process.cwd(),
-    createdAt: typeof legacy.createdAt === "string" ? legacy.createdAt : now,
-    updatedAt: typeof legacy.updatedAt === "string" ? legacy.updatedAt : now,
-  };
-}
-
-// Loads state.json, migrating a pre-multi-scope v1 file in place (and
-// persisting the migration immediately) so a pending v1 wake is never lost
-// across the upgrade. Returns null when the file doesn't exist or is
-// unreadable/corrupt.
-function loadState(): StateFileV2 | null {
-  try {
-    const raw = fs.readFileSync(STATE_PATH, "utf8");
-    const parsed: unknown = JSON.parse(raw);
-
-    if (looksLikeV2(parsed)) {
-      return parsed;
-    }
-
-    if (looksLikeLegacyV1(parsed)) {
-      const legacy = parsed as Record<string, unknown>;
-      const scopeKey =
-        typeof legacy.scopeGlob === "string" && legacy.scopeGlob.length > 0 ? legacy.scopeGlob : CATCHALL_SCOPE;
-      const migrated: StateFileV2 = {
-        version: STATE_VERSION,
-        entries: { [scopeKey]: migrateLegacyEntry(legacy, scopeKey) },
-      };
-      saveState(migrated);
-      return migrated;
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function saveState(state: StateFileV2): void {
-  try {
-    fs.mkdirSync(STATE_DIR, { recursive: true });
-    fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), "utf8");
-  } catch {
-    // fail open: an unpersisted timer still fires for this process's lifetime.
-  }
-}
-
-function pendingEntries(state: StateFileV2 | null): WakeEntry[] {
+function pendingEntries(state: StateFileV3 | null): WakeEntry[] {
   if (!state) {
     return [];
   }
@@ -723,20 +251,68 @@ function formatRemaining(ms: number): string {
   return parts.join(" ") || "0s";
 }
 
+const LOCAL_WAKE_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+const LOCAL_WAKE_WEEKDAY_FORMAT = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+});
+
+const LOCAL_WAKE_MONTH_DAY_FORMAT = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+});
+
+const LOCAL_WAKE_MONTH_DAY_YEAR_FORMAT = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+function localDayStart(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function diffLocalDays(left: Date, right: Date): number {
+  return Math.round((localDayStart(left) - localDayStart(right)) / 86_400_000);
+}
+
+function formatLocalWakeTime(date: Date, now = new Date()): string {
+  const dayDiff = diffLocalDays(date, now);
+  const time = LOCAL_WAKE_TIME_FORMAT.format(date);
+
+  if (dayDiff === 0) {
+    return `today ${time}`;
+  }
+  if (dayDiff === 1) {
+    return `tomorrow ${time}`;
+  }
+  if (dayDiff > 1 && dayDiff < 7) {
+    return `${LOCAL_WAKE_WEEKDAY_FORMAT.format(date)} ${time}`;
+  }
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${LOCAL_WAKE_MONTH_DAY_FORMAT.format(date)} ${time}`;
+  }
+  return `${LOCAL_WAKE_MONTH_DAY_YEAR_FORMAT.format(date)} ${time}`;
+}
+
 // Wall-clock wake time in the host machine's local timezone. HH:mm normally,
 // HH:mm:ss when under a minute remains (matches the spec's footer format).
 function formatWallClock(iso: string, remainingMs: number): string {
   const d = new Date(iso);
+  if (remainingMs >= 60_000) {
+    return formatLocalWakeTime(d);
+  }
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  if (remainingMs < 60_000) {
-    const ss = String(d.getSeconds()).padStart(2, "0");
-    return `${hh}:${mm}:${ss}`;
-  }
-  return `${hh}:${mm}`;
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
 }
 
-// --- /rate-limit TUI panel (read-only, V1) -----------------------------------
+// --- /sheepdog panel (read-only, v1) -----------------------------------------
 
 // Read-only overlay listing every tracked scope. No actions in V1 (see spec:
 // resume-now/delete are phase 2) — the only input handled is Escape to
@@ -773,14 +349,14 @@ class RateLimitPanel implements Component {
     const truncate = (s: string, max: number) => (visibleWidth(s) > max ? `${s.slice(0, Math.max(0, max - 1))}…` : s);
 
     lines.push(th.fg("border", `╭${"─".repeat(innerW)}╮`));
-    lines.push(row(` ${th.fg("accent", "⏰ rate limit scopes")}`));
+    lines.push(row(` ${th.fg("accent", "🐑 sheepdog scopes")}`));
     lines.push(row(""));
 
     if (this.entries.length === 0) {
-      lines.push(row(` ${th.fg("dim", "no pending rate-limit scopes")}`));
+      lines.push(row(` ${th.fg("dim", "no pending sheepdog scopes")}`));
     } else {
-      const scopeW = 22;
-      const wakeW = 8;
+      const scopeW = 18;
+      const wakeW = 18;
       const remW = 11;
       const header =
         ` ${pad(th.fg("dim", "scope"), scopeW)} ${pad(th.fg("dim", "wake"), wakeW)} ` +
@@ -834,14 +410,25 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  function clearLegacyStatus(): void {
+    try {
+      if (lastCtx?.hasUI) {
+        lastCtx.ui.setStatus(LEGACY_STATUS_KEY, undefined);
+      }
+    } catch {
+      // fail open
+    }
+  }
+
   function setFooterStatus(): void {
     try {
+      clearLegacyStatus();
       if (!lastCtx?.hasUI) {
         return;
       }
       const pending = pendingEntries(loadState());
       if (pending.length === 0) {
-        lastCtx.ui.setStatus("rate-limit-wakeup", undefined);
+        lastCtx.ui.setStatus(STATUS_KEY, undefined);
         return;
       }
       pending.sort((a, b) => new Date(a.wakeAt).getTime() - new Date(b.wakeAt).getTime());
@@ -850,10 +437,7 @@ export default function (pi: ExtensionAPI) {
       const wallClock = formatWallClock(soonest.wakeAt, remaining);
       const extra = pending.length - 1;
       const suffix = extra > 0 ? ` +${extra} more` : "";
-      lastCtx.ui.setStatus(
-        "rate-limit-wakeup",
-        `⏰ rate limit wake ${wallClock} (in ${formatRemaining(remaining)})${suffix}`,
-      );
+      lastCtx.ui.setStatus(STATUS_KEY, `🐑 sheepdog wake ${wallClock} (in ${formatRemaining(remaining)})${suffix}`);
     } catch {
       // fail open
     }
@@ -885,8 +469,8 @@ export default function (pi: ExtensionAPI) {
       "First check current status/output, then resume safely.",
       "",
       `Source: ${entry.source}`,
-      `Detail: ${entry.sourceExcerpt}`,
-      `Scheduled wake: ${entry.wakeAt}`,
+      `Detail: ${entry.redactedExcerpt}`,
+      `Scheduled wake: ${formatLocalWakeTime(new Date(entry.wakeAt))}`,
       `Working directory: ${entry.cwd}`,
     ];
     if (entry.modelRef) {
@@ -903,21 +487,28 @@ export default function (pi: ExtensionAPI) {
   function fireWake(scopeKey: string): void {
     try {
       clearTimer(scopeKey);
-      const state = loadState();
-      const entry = state?.entries[scopeKey];
-      if (!state || !entry || entry.status !== "pending") {
+      debug("wake_due", { scope: scopeKey });
+      const entry = updateState((state) => {
+        const current = state.entries[scopeKey];
+        if (!current || current.status !== "pending") {
+          return undefined;
+        }
+        current.status = "fired";
+        current.updatedAt = new Date().toISOString();
+        return { ...current };
+      });
+      if (!entry) {
+        debug("wake_skipped", { scope: scopeKey, reason: "missing_or_terminal" });
         maybeStopTicker();
         return;
       }
 
-      entry.status = "fired";
-      entry.updatedAt = new Date().toISOString();
-      saveState(state);
       setFooterStatus();
       maybeStopTicker();
-
       pi.sendUserMessage(buildResumeMessage(entry), { deliverAs: "followUp" });
-    } catch {
+      debug("wake_fired", { scope: scopeKey, adapter: entry.adapter, source: entry.source });
+    } catch (error) {
+      reportStateLockFailure(error, "fire-wake", (message) => debug("state_write_retry", { operation: "fire-wake", warning: message }));
       // fail open: best-effort extension must not throw out of a timer callback.
     }
   }
@@ -941,6 +532,8 @@ export default function (pi: ExtensionAPI) {
         const current = loadState()?.entries[scopeKey];
         if (current && current.status === "pending") {
           scheduleWake(current);
+        } else {
+          debug("wake_skipped", { scope: scopeKey, reason: "missing_or_terminal" });
         }
         return;
       }
@@ -958,72 +551,54 @@ export default function (pi: ExtensionAPI) {
   // of pushing the timer later. A detection for a *different* scope always
   // gets (or updates) its own independent entry; unlike the old single-timer
   // design, scopes no longer compete with each other.
-  function upsertDetectedState(ctx: ExtensionContext, parsed: ParsedRateLimit, source: "provider-429" | "agent_end"): void {
+  function resolveDetectionMapper(ctx: ExtensionContext): ReturnType<typeof resolveMapper> {
+    const config = loadConfig();
+    debug("config_loaded", { validRuleCount: config.rules.length, warningCount: config.warnings.length });
+    for (const warning of config.warnings) {
+      debug("config_warning", { warning });
+      ctx.ui.notify(`Sheepdog config: ${warning}. Invalid rule skipped; edit ${getConfigPath()}.`, "warning");
+    }
+    const modelRef = computeModelRef(ctx);
+    const mapper = resolveMapper(modelRef, config, CATCHALL_SCOPE);
+    debug("mapper_matched", { modelRef, adapter: mapper.adapter, scope: mapper.scopeGlob, argNames: Object.keys(mapper.args ?? {}) });
+    return mapper;
+  }
+
+  function upsertDetectedState(ctx: ExtensionContext, parsed: ParsedRateLimit, source: "provider-429" | "agent_end", mapper: ReturnType<typeof resolveMapper>): void {
     const now = new Date();
     const newWakeAt = new Date(now.getTime() + parsed.delayMs).toISOString();
     const modelRef = computeModelRef(ctx);
-    const scopeKey = computeScopeGlob(modelRef) ?? CATCHALL_SCOPE;
+    const scopeKey = mapper.scopeGlob;
 
-    const state = loadState() ?? { version: STATE_VERSION, entries: {} };
-    const existing = state.entries[scopeKey];
-    const existingPending = existing?.status === "pending" ? existing : undefined;
-
-    let entry: WakeEntry;
-    if (existingPending && new Date(existingPending.wakeAt).getTime() <= new Date(newWakeAt).getTime()) {
-      // The existing pending wake for this scope already fires at or before
-      // this new detection would — keep it as-is instead of pushing the
-      // timer later.
-      entry = { ...existingPending, updatedAt: now.toISOString() };
-    } else {
-      entry = {
+    const entry = updateState((state) => {
+      const existing = state.entries[scopeKey];
+      const nextEntry = mergeDetectedWakeEntry(existing, {
         scopeGlob: scopeKey,
-        status: "pending",
         wakeAt: newWakeAt,
         delayMs: parsed.delayMs,
-        sourceExcerpt: parsed.excerpt,
+        redactedExcerpt: redactAndTruncateExcerpt(parsed.excerpt),
         source,
+        adapter: mapper.adapter,
         modelRef,
         sessionId: safeSessionId(ctx),
         sessionFile: safeSessionFile(ctx),
         cwd: ctx.cwd,
-        createdAt: existingPending?.createdAt ?? now.toISOString(),
-        updatedAt: now.toISOString(),
-      };
+        nowIso: now.toISOString(),
+      }) as WakeEntry;
+      state.entries[scopeKey] = nextEntry;
+      return { ...nextEntry };
+    });
+    if (entry) {
+      debug("detection_matched", {
+        source,
+        adapter: mapper.adapter,
+        scope: scopeKey,
+        delayMs: parsed.delayMs,
+        excerpt: parsed.excerpt,
+        argNames: Object.keys(mapper.args ?? {}),
+      });
+      scheduleWake(entry);
     }
-
-    state.entries[scopeKey] = entry;
-    saveState(state);
-    scheduleWake(entry);
-  }
-
-  // Manual /rate-limit-wakeup-set upsert: always overwrites the target
-  // scope's entry outright (no earliest-wins dedupe) — the user explicitly
-  // picked this time, so a stale earlier automatic detection for the same
-  // scope shouldn't silently win over it.
-  function upsertManualState(ctx: ExtensionContext, scopeKey: string, wakeAt: Date, ms: number): WakeEntry {
-    const now = new Date();
-    const state = loadState() ?? { version: STATE_VERSION, entries: {} };
-    const existing = state.entries[scopeKey];
-
-    const entry: WakeEntry = {
-      scopeGlob: scopeKey,
-      status: "pending",
-      wakeAt: wakeAt.toISOString(),
-      delayMs: ms,
-      sourceExcerpt: `manual: set via /rate-limit-wakeup-set (${formatRemaining(ms)})`,
-      source: "manual",
-      modelRef: computeModelRef(ctx),
-      sessionId: safeSessionId(ctx),
-      sessionFile: safeSessionFile(ctx),
-      cwd: ctx.cwd,
-      createdAt: existing?.createdAt ?? now.toISOString(),
-      updatedAt: now.toISOString(),
-    };
-
-    state.entries[scopeKey] = entry;
-    saveState(state);
-    scheduleWake(entry);
-    return entry;
   }
 
   function lastAssistantMessage(messages: unknown[]): any | undefined {
@@ -1039,22 +614,31 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     try {
       lastCtx = ctx;
-      const state = loadState();
+      clearLegacyStatus();
+      const expiredScopes: string[] = [];
+      const state = updateState((current) => {
+        const now = Date.now();
+        for (const entry of Object.values(current.entries)) {
+          if (entry.status === "pending" && new Date(entry.wakeAt).getTime() <= now) {
+            entry.status = "expired";
+            entry.updatedAt = new Date(now).toISOString();
+            expiredScopes.push(entry.scopeGlob);
+          }
+        }
+        return { ...current };
+      }) ?? loadState();
+      for (const scope of expiredScopes) debug("wake_expired", { scope, reason: "startup_overdue" });
       if (!state) {
+        setFooterStatus();
         return;
       }
       for (const entry of Object.values(state.entries)) {
-        if (entry.status !== "pending") {
-          continue;
-        }
-        const remaining = new Date(entry.wakeAt).getTime() - Date.now();
-        if (remaining <= 0) {
-          fireWake(entry.scopeGlob);
-        } else {
+        if (entry.status === "pending") {
           scheduleWake(entry);
         }
       }
-    } catch {
+    } catch (error) {
+      reportStateLockFailure(error, "session-start", (message) => debug("state_write_retry", { operation: "session-start", warning: message }));
       // fail open
     }
   });
@@ -1070,13 +654,16 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const parsed = parseProviderRateLimit(event.headers);
-      if (!parsed) {
-        return;
-      }
+      const mapper = resolveDetectionMapper(ctx);
+      const parsed = consumeDetectorResult(detectHeaders(mapper.adapter, event.headers), (reason) => {
+        debug("detection_blocked", { source: "provider-429", adapter: mapper.adapter, reason });
+        ctx.ui.notify(`Sheepdog detection blocked generic fallback: ${reason}.`, "warning");
+      });
+      if (!parsed) return;
 
-      upsertDetectedState(ctx, parsed, "provider-429");
-    } catch {
+      upsertDetectedState(ctx, parsed, "provider-429", mapper);
+    } catch (error) {
+      reportStateLockFailure(error, "provider-response", (message) => debug("state_write_retry", { operation: "provider-response", warning: message }));
       // fail open
     }
   });
@@ -1094,13 +681,16 @@ export default function (pi: ExtensionAPI) {
       }
 
       const errorMessage = String(assistant.errorMessage ?? "");
-      const parsed = parseRateLimitError(errorMessage);
-      if (!parsed) {
-        return;
-      }
+      const mapper = resolveDetectionMapper(ctx);
+      const parsed = consumeDetectorResult(detectErrorText(mapper.adapter, errorMessage), (reason) => {
+        debug("detection_blocked", { source: "agent_end", adapter: mapper.adapter, reason });
+        ctx.ui.notify(`Sheepdog detection blocked generic fallback: ${reason}.`, "warning");
+      });
+      if (!parsed) return;
 
-      upsertDetectedState(ctx, parsed, "agent_end");
-    } catch {
+      upsertDetectedState(ctx, parsed, "agent_end", mapper);
+    } catch (error) {
+      reportStateLockFailure(error, "agent-end", (message) => debug("state_write_retry", { operation: "agent-end", warning: message }));
       // fail open
     }
   });
@@ -1117,119 +707,25 @@ export default function (pi: ExtensionAPI) {
       clearInterval(statusTicker);
       statusTicker = undefined;
     }
+    clearLegacyStatus();
+    try {
+      lastCtx?.ui.setStatus(STATUS_KEY, undefined);
+    } catch {
+      // fail open
+    }
   });
 
-  pi.registerCommand("rate-limit-wakeup", {
-    description: "Show pending rate-limit wakeup timers, if any",
-    handler: async (_args, ctx) => {
-      const pending = pendingEntries(loadState());
-      if (pending.length === 0) {
-        ctx.ui.notify("No pending rate-limit wakeup.", "info");
-        return;
-      }
-
-      pending.sort((a, b) => new Date(a.wakeAt).getTime() - new Date(b.wakeAt).getTime());
-      const currentModelRef = computeModelRef(ctx);
-
-      const lines = pending.map((entry) => {
-        const remaining = new Date(entry.wakeAt).getTime() - Date.now();
-        let line =
-          `${entry.scopeGlob === CATCHALL_SCOPE ? "(untagged)" : entry.scopeGlob}: ` +
-          `fires in ${formatRemaining(remaining)} (at ${entry.wakeAt}), source: ${entry.source}`;
-        if (entry.modelRef) {
-          line += ` (from ${entry.modelRef})`;
-        }
-        if (currentModelRef) {
-          line += matchesScope(entry.scopeGlob, currentModelRef)
-            ? " — current model is within this scope"
-            : "";
-        }
-        return line;
-      });
-
-      ctx.ui.notify(`${pending.length} pending rate-limit wakeup(s):\n${lines.join("\n")}`, "info");
-    },
-  });
-
-  pi.registerCommand("rate-limit-wakeup-set", {
-    description: "Manually schedule a rate-limit wakeup: /rate-limit-wakeup-set <duration> [scope]",
-    handler: async (args, ctx) => {
-      lastCtx = ctx;
-      const parsedArgs = parseManualSetArgs(args ?? "");
-      if (!parsedArgs.ok) {
-        ctx.ui.notify(parsedArgs.error, "error");
-        return;
-      }
-
-      const scopeKey = parsedArgs.scopeToken ?? defaultScopeKey(ctx);
-      const wakeAt = new Date(Date.now() + parsedArgs.ms);
-      const entry = upsertManualState(ctx, scopeKey, wakeAt, parsedArgs.ms);
-      setFooterStatus();
-
-      ctx.ui.notify(
-        `Rate-limit wakeup set for scope \`${entry.scopeGlob}\`: fires in ${formatRemaining(parsedArgs.ms)} ` +
-          `(at ${formatWallClock(entry.wakeAt, parsedArgs.ms)}).`,
-        "info",
-      );
-    },
-  });
-
-  pi.registerCommand("rate-limit-wakeup-clear", {
-    description: "Cancel pending rate-limit wakeup timer(s): /rate-limit-wakeup-clear [scope]",
-    handler: async (args, ctx) => {
-      const scopeArg = (args ?? "").trim();
-      const state = loadState();
-      if (!state || Object.keys(state.entries).length === 0) {
-        ctx.ui.notify("No pending rate-limit wakeup to clear.", "info");
-        return;
-      }
-
-      if (scopeArg) {
-        const entry = state.entries[scopeArg];
-        if (!entry || entry.status !== "pending") {
-          ctx.ui.notify(`No pending rate-limit wakeup for scope \`${scopeArg}\`.`, "info");
-          return;
-        }
-        entry.status = "cancelled";
-        entry.updatedAt = new Date().toISOString();
-        saveState(state);
-        clearTimer(scopeArg);
-        maybeStopTicker();
-        setFooterStatus();
-        ctx.ui.notify(`Rate-limit wakeup for scope \`${scopeArg}\` cancelled.`, "info");
-        return;
-      }
-
-      let cleared = 0;
-      for (const entry of Object.values(state.entries)) {
-        if (entry.status === "pending") {
-          entry.status = "cancelled";
-          entry.updatedAt = new Date().toISOString();
-          cleared += 1;
-        }
-      }
-      if (cleared === 0) {
-        ctx.ui.notify("No pending rate-limit wakeup to clear.", "info");
-        return;
-      }
-      saveState(state);
-      clearAllTimers();
-      setFooterStatus();
-      ctx.ui.notify(`Cleared ${cleared} pending rate-limit wakeup(s).`, "info");
-    },
-  });
-
-  pi.registerCommand("rate-limit", {
-    description: "Open a read-only panel listing all tracked rate-limit scopes",
+  pi.registerCommand("sheepdog", {
+    description: "Show tracked sheepdog cooldown scopes",
     handler: async (_args, ctx: ExtensionCommandContext) => {
       const pending = pendingEntries(loadState());
 
       // Guard: the overlay component needs a real terminal. In non-TUI modes
       // (rpc/json/print) or when dialog UI isn't available, fall back to the
-      // same notify-list /rate-limit-wakeup uses.
+      // same notify-list this command uses in TUI-less modes.
       if (!ctx.hasUI || ctx.mode !== "tui") {
         if (pending.length === 0) {
-          ctx.ui.notify("No pending rate-limit scopes.", "info");
+          ctx.ui.notify(`No pending sheepdog scopes. Config: ${getConfigPath()}`, "info");
           return;
         }
         pending.sort((a, b) => new Date(a.wakeAt).getTime() - new Date(b.wakeAt).getTime());
@@ -1237,7 +733,7 @@ export default function (pi: ExtensionAPI) {
           const remaining = new Date(entry.wakeAt).getTime() - Date.now();
           return `${entry.scopeGlob === CATCHALL_SCOPE ? "(untagged)" : entry.scopeGlob}: ${formatWallClock(entry.wakeAt, remaining)} (in ${formatRemaining(remaining)}), source: ${entry.source}`;
         });
-        ctx.ui.notify(`${pending.length} pending rate-limit scope(s):\n${lines.join("\n")}`, "info");
+        ctx.ui.notify(`${pending.length} pending sheepdog scope(s):\n${lines.join("\n")}\nConfig: ${getConfigPath()}`, "info");
         return;
       }
 
@@ -1248,6 +744,13 @@ export default function (pi: ExtensionAPI) {
           overlayOptions: { anchor: "top-right", width: 74, margin: 2 },
         },
       );
+    },
+  });
+
+  pi.registerCommand("sheepdog config", {
+    description: "Show the sheepdog config path",
+    handler: async (_args, ctx) => {
+      ctx.ui.notify(`Sheepdog config path: ${getConfigPath()}`, "info");
     },
   });
 }

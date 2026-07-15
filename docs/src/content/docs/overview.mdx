@@ -14,7 +14,7 @@ It watches for provider cooldown signals, records scoped wake entries, and nudge
 
 - Detects cooldowns from provider HTTP 429 headers.
 - Falls back to final agent error text when headers are not enough.
-- Lets a human manage wakes from `/sheepdog` in the interactive panel.
+- Lets a human inspect tracked wakes from `/sheepdog`.
 - Stores wake state globally under the Pi agent directory so wakes survive reloads and restarts.
 - Shows a `sheepdog` footer/status signal for relevant pending wakes.
 
