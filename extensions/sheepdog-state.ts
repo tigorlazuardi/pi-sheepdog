@@ -7,10 +7,11 @@ export const STATE_VERSION = 3;
 export const MAX_PERSISTED_EXCERPT = 400;
 
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
+  // JSON-like fragments may be nested inside provider text, so redact quoted key/value pairs before header forms.
+  [/(\b(?:cookie|set-cookie)\b["']?\s*:\s*)(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*')/gi, "$1[REDACTED]"],
   // ponytail: redact whole cookie header; preserving individual safe cookies is not worth risking session leakage.
-  [/(\b(?:cookie|set-cookie)\s*:\s*)[^\r\n]*/gi, "$1[REDACTED]"],
-  [/(\b(?:authorization|proxy-authorization)\s*[:=]\s*)(?:bearer|basic)?\s*[^\s,;]+/gi, "$1[REDACTED]"],
-  [/(\b(?:api[_-]?key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret)\b\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)/gi, "$1[REDACTED]"],
+  [/(\b(?:cookie|set-cookie)\s*[:=]\s*)[^\r\n]*/gi, "$1[REDACTED]"],
+  [/(\b(?:authorization|proxy[_-]?authorization|auth|auth[_-]?token|bearer|bearer[_-]?token|api[_-]?key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret|client[_-]?secret)\b["']?\s*[:=]\s*)(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|(?:bearer|basic)\s+[^\s,;}]+|[^\s,;}]+)/gi, "$1[REDACTED]"],
   [/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_JWT]"],
   [/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/gi, "[REDACTED_PRIVATE_KEY]"],
 ];

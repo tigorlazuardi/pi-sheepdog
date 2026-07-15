@@ -81,16 +81,22 @@ function checkStateSemantics() {
   const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature";
   const cookieSecret = "COOKIE_SECRET_98f5";
   const quotedSecret = "quoted multiword secret 42";
-  const secrets = `Authorization: Bearer top-secret Cookie: theme=dark; sessionid=${cookieSecret}\napi_key="${quotedSecret}" token='tok-value' password=hunter2 jwt=${jwt}`;
+  const jsonApiKey = "JSON_API_KEY_42";
+  const jsonToken = "JSON_TOKEN_42";
+  const jsonAuth = "JSON_BEARER_42";
+  const secrets = `Authorization: Bearer top-secret Cookie: theme=dark; sessionid=${cookieSecret}\napi_key="${quotedSecret}" token='tok-value' password=hunter2 jwt=${jwt}\nprovider={"error":{"api_key":"${jsonApiKey}","token": "${jsonToken}","authorization":"Bearer ${jsonAuth}"}}`;
+  const secretValues = ["top-secret", cookieSecret, quotedSecret, "tok-value", "hunter2", jwt, jsonApiKey, jsonToken, jsonAuth];
   const safe = redactAndTruncateExcerpt(`${secrets} ${"x".repeat(500)}`);
   assert.equal(safe.length, 400);
-  for (const secret of ["top-secret", cookieSecret, quotedSecret, "tok-value", "hunter2", jwt]) assert.ok(!safe.includes(secret));
+  for (const secret of secretValues) assert.ok(!safe.includes(secret));
   assert.match(safe, /Authorization: \[REDACTED\]/);
   assert.match(safe, /api_key=\[REDACTED\]/);
+  assert.match(safe, /"api_key":\[REDACTED\]/);
+  assert.match(safe, /"token": \[REDACTED\]/);
 
   const migrated = normalizeState({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", delayMs: 120000, sourceExcerpt: `provider response 429; ${secrets}` }, { catchallScope: "*" });
   assert.equal(migrated.version, 3);
-  assert.ok(!migrated.entries["*"].redactedExcerpt.includes("top-secret"));
+  for (const secret of secretValues) assert.ok(!migrated.entries["*"].redactedExcerpt.includes(secret));
   assert.equal(migrated.entries["*"].source, "provider-429");
   assert.equal(migrated.entries["*"].originalSource, undefined);
 
@@ -100,13 +106,13 @@ function checkStateSemantics() {
     fs.writeFileSync(statePath, JSON.stringify({ version: 1, wakeAt: "2026-07-14T10:00:00.000Z", sourceExcerpt: secrets }));
     updateStateFile(statePath, () => undefined, { catchallScope: "*" });
     const persisted = fs.readFileSync(statePath, "utf8");
-    for (const secret of ["top-secret", cookieSecret, quotedSecret, "tok-value", "hunter2", jwt]) assert.ok(!persisted.includes(secret));
+    for (const secret of secretValues) assert.ok(!persisted.includes(secret));
 
     updateStateFile(statePath, (state) => {
       state.entries["*"].redactedExcerpt = secrets;
     });
     const rewritten = fs.readFileSync(statePath, "utf8");
-    for (const secret of [cookieSecret, quotedSecret]) assert.ok(!rewritten.includes(secret));
+    for (const secret of secretValues) assert.ok(!rewritten.includes(secret));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
